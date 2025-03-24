@@ -1,3 +1,13 @@
 <resources>
     <string name="app_name">RiEvent</string>
+    <string name="logo">RiEvent logo</string>
+    <string name="login_title">Welcome back</string>
+    <string name="login_button">Login</string>
+    <string name="forgot_password">Forgot password?</string>
+    <string name="login_description">Login to your account</string>
+    <string name="register_button">Register</string>
+    <string name="register_title">Create an account</string>
+    <string name="register_description">Create an account to get started</string>
+    <string name="passowrd">Password</string>
+    <string name="email">Email address</string>
 </resources>
