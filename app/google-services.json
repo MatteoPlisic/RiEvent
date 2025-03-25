@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "879996105658",
+    "project_id": "rievent-d1a05",
+    "storage_bucket": "rievent-d1a05.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:879996105658:android:809bdb4fdb6bae75116383",
+        "android_client_info": {
+          "package_name": "com.example.rievent"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDpmkzVD1oGxJPghQ9GgNBlyTYEFDTo9qU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
