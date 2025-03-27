@@ -8,8 +8,8 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.rievent.ui.login.LoginScreen
-import com.example.rievent.ui.login.LoginViewModel
+import com.example.rievent.ui.register.RegisterScreen
+import com.example.rievent.ui.register.RegisterViewModel
 import com.google.firebase.FirebaseApp
 
 class MainActivity : ComponentActivity() {
@@ -19,18 +19,18 @@ class MainActivity : ComponentActivity() {
         Log.d("FirebaseTest", "Firebase initialized? ${result != null}")
         enableEdgeToEdge()
         setContent {
-            //val viewModel: RegisterViewModel = viewModel()
-            val viewModel: LoginViewModel = viewModel()
+            val viewModel: RegisterViewModel = viewModel()
+            //val viewModel: LoginViewModel = viewModel()
             val state by viewModel.uiState.collectAsState()
 
-            LoginScreen(
+            /*LoginScreen(
                 state = state,
                 onEmailChange = viewModel::onEmailChange,
                 onPasswordChange = viewModel::onPasswordChange,
                 onLoginClick = viewModel::onLoginClick,
                 onForgotPasswordClick = viewModel::onForgotPasswordClick
-            )
-            /*RegisterScreen(
+            )*/
+            RegisterScreen(
                 state = state,
                 onEmailChange = viewModel::onEmailChange,
                 onPasswordChange = viewModel::onPasswordChange,
@@ -45,7 +45,7 @@ class MainActivity : ComponentActivity() {
                 onRegisterClick = viewModel::onRegisterClick,
 
 
-            )*/
+            )
         }
     }
 }
