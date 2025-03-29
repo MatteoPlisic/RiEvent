@@ -10,4 +10,5 @@
     <string name="register_description">Create an account to get started</string>
     <string name="passowrd">Password</string>
     <string name="email">Email address</string>
+    <string name="home_text">Welcome to RiEvent</string>
 </resources>

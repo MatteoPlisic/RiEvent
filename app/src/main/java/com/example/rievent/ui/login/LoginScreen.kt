@@ -17,7 +17,7 @@ import androidx.compose.ui.unit.sp
 import com.example.rievent.R
 
 
-@Preview(showBackground = true)
+
 @Composable
 fun LoginScreenPreview() {
     LoginScreen(

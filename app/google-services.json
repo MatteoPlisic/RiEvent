@@ -1,6 +1,7 @@
 {
   "project_info": {
     "project_number": "879996105658",
+    "firebase_url": "https://rievent-d1a05-default-rtdb.europe-west1.firebasedatabase.app",
     "project_id": "rievent-d1a05",
     "storage_bucket": "rievent-d1a05.firebasestorage.app"
   },
@@ -12,7 +13,20 @@
           "package_name": "com.example.rievent"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "879996105658-41t0pse1d745tscss5d12ppfetjhu4hf.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.rievent",
+            "certificate_hash": "8b5e93f7b31e150ba502cf04600dd2473f02f2a5"
+          }
+        },
+        {
+          "client_id": "879996105658-vno0o76g5ao0dpb8pl6pdvib0mq62cou.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyDpmkzVD1oGxJPghQ9GgNBlyTYEFDTo9qU"
@@ -20,7 +34,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "879996105658-vno0o76g5ao0dpb8pl6pdvib0mq62cou.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }
