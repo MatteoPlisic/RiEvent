@@ -1,4 +1,4 @@
-package com.example.rievent.ui.Home
+package com.example.rievent.ui.welcome
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
@@ -6,12 +6,16 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
@@ -22,9 +26,27 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.rievent.R
 import androidx.compose.ui.text.font.FontStyle
+import androidx.navigation.NavController
+import com.example.rievent.ui.login.LoginViewModel
 
 @Composable
-fun WelcomeScreen(onLoginClick: () -> Unit, onRegisterClick: () -> Unit, onGoogleLoginClick: () -> Unit) {
+fun WelcomeScreen(onLoginClick: () -> Unit, onRegisterClick: () -> Unit, onGoogleLoginClick: () -> Unit,
+                  viewModel: WelcomeViewModel,
+                  navController: NavController
+) {
+    val uiState by viewModel.uiState.collectAsState()
+
+
+    LaunchedEffect(uiState.success) {
+        if (uiState.success) {
+            navController.navigate("home") {
+                popUpTo("welcome") { inclusive = true }
+            }
+            viewModel.clearNavigationFlag() // reset to avoid re-trigger
+        }
+    }
+
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -48,16 +70,16 @@ fun WelcomeScreen(onLoginClick: () -> Unit, onRegisterClick: () -> Unit, onGoogl
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        Row(horizontalArrangement = Arrangement.spacedBy(16.dp) // space between buttons
+        Column (verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-            Button(onClick = onLoginClick) {
+            Button(onClick = onLoginClick, modifier = Modifier.fillMaxWidth()) {
                 Text(text = "Login")
             }
-            Button(onClick = onRegisterClick) {
+            Button(onClick = onRegisterClick,modifier = Modifier.fillMaxWidth()) {
                 Text(text = "Register")
             }
 
-            Button(onClick = onGoogleLoginClick) {
+            Button(onClick = onGoogleLoginClick, modifier = Modifier.fillMaxWidth()) {
                 Text(text = "Login with Google")
             }
         }
@@ -77,6 +99,8 @@ fun HomeScreenPreview() {
     WelcomeScreen(
         onLoginClick = {},
         onRegisterClick = {},
-        onGoogleLoginClick = {}
+        onGoogleLoginClick = {},
+        viewModel = WelcomeViewModel(),
+        navController = TODO()
     )
 }

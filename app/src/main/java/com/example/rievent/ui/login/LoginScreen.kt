@@ -3,6 +3,8 @@ package com.example.rievent.ui.login
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -14,6 +16,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.navigation.NavController
 import com.example.rievent.R
 
 
@@ -28,7 +31,9 @@ fun LoginScreenPreview() {
         onEmailChange = {},
         onPasswordChange = {},
         onLoginClick = {},
-        onForgotPasswordClick = {}
+        onForgotPasswordClick = {},
+        viewModel = LoginViewModel(),
+        navController = TODO(),
     )
 }
 
@@ -39,12 +44,30 @@ fun LoginScreen(
     onEmailChange: (String) -> Unit,
     onPasswordChange: (String) -> Unit,
     onLoginClick: () -> Unit,
-    onForgotPasswordClick: () -> Unit
+    onForgotPasswordClick: () -> Unit,
+    viewModel: LoginViewModel,
+    navController: NavController,
 ) {
+    var scrollState = rememberScrollState()
+
+    val uiState by viewModel.uiState.collectAsState()
+
+    // ✅ Navigation side-effect
+    LaunchedEffect(uiState.success) {
+        if (uiState.success) {
+            navController.navigate("home") {
+                popUpTo("welcome") { inclusive = true }
+            }
+            viewModel.clearNavigationFlag() // reset to avoid re-trigger
+        }
+    }
+
     Column(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier.fillMaxSize()
+            .verticalScroll(scrollState),
         verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally
+        horizontalAlignment = Alignment.CenterHorizontally,
+
     ) {
         Image(
             painter = painterResource(id = R.drawable.ri_event_logo),

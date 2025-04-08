@@ -1,6 +1,7 @@
 package com.example.rievent.ui.register
 
 import androidx.lifecycle.ViewModel
+import androidx.navigation.navOptions
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
@@ -86,6 +87,8 @@ class RegisterViewModel : ViewModel() {
                         .addOnFailureListener { e ->
                             _uiState.update { it.copy(emailError = "User created but failed to save profile: ${e.message}") }
                         }
+
+                    navOptions {  }
 
                 } else {
                     val error = task.exception?.localizedMessage ?: "Registration failed"

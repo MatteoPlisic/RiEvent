@@ -24,6 +24,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.rievent.R
 import java.util.Date
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 
 
 @Composable
@@ -41,10 +43,12 @@ fun RegisterScreen(
     onPrivacyPolicyChange: (Boolean) -> Unit,
     onRegisterClick: () -> Unit
 ) {
+    val scrollState = rememberScrollState()
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 24.dp),
+            .padding(horizontal = 24.dp)
+            .verticalScroll(scrollState),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -185,6 +189,8 @@ fun RegisterScreen(
         Button(onClick = onRegisterClick) {
             Text("Register")
         }
+
+        Spacer(modifier = Modifier.height(150.dp))
     }
 }
 

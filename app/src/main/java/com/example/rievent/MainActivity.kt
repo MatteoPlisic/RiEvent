@@ -1,75 +1,60 @@
 package com.example.rievent
 
-import android.content.Intent
+
 import android.os.Bundle
 import android.util.Log
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.activity.result.ActivityResultLauncher
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.LocalContext
+import androidx.credentials.CredentialManager
+import androidx.credentials.GetCredentialRequest
+
+import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.rievent.auth.GoogleCredentialAuthManager
 import com.example.rievent.ui.register.RegisterViewModel
-import com.google.android.gms.auth.api.signin.GoogleSignIn
-import com.google.android.gms.auth.api.signin.GoogleSignInOptions
-import com.google.android.gms.common.api.ApiException
+import com.google.android.libraries.identity.googleid.GetGoogleIdOption
+import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.GoogleAuthProvider
+import kotlinx.coroutines.launch
+import java.security.MessageDigest
+import java.util.UUID
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         /*val result = FirebaseApp.initializeApp(this)
         Log.d("FirebaseTest", "Firebase initialized? ${result != null}")*/
-        lateinit var auth: FirebaseAuth
-        lateinit var googleSignInLauncher: ActivityResultLauncher<Intent>
-        auth = FirebaseAuth.getInstance()
 
-        val googleSignInClient = GoogleSignIn.getClient(
-            this,
-            GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
-                .requestIdToken(getString(R.string.default_web_client_id))
-                .requestEmail()
-                .build()
-        )
 
-        googleSignInLauncher = registerForActivityResult(
-            ActivityResultContracts.StartActivityForResult()
-        ) { result ->
-            val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
-            try {
-                val account = task.getResult(ApiException::class.java)
-                val credential = GoogleAuthProvider.getCredential(account.idToken, null)
 
-                auth.signInWithCredential(credential)
-                    .addOnCompleteListener { signInTask ->
-                        if (signInTask.isSuccessful) {
-                            val user = auth.currentUser
-                            Log.d("GoogleLogin", "Login success: ${user?.email}")
 
-                        } else {
-                            Log.e("GoogleLogin", "Firebase login failed", signInTask.exception)
-                        }
-                    }
-            } catch (e: ApiException) {
-                Log.e("GoogleLogin", "Google sign-in failed", e)
-            }
-        }
         enableEdgeToEdge()
         setContent {
-            val viewModel: RegisterViewModel = viewModel()
-            //val viewModel: LoginViewModel = viewModel()
-            val state by viewModel.uiState.collectAsState()
-            setContent {
-                RiEventAppUI(
-                    onGoogleLoginClick = {
-                        val signInIntent = googleSignInClient.signInIntent
-                        googleSignInLauncher.launch(signInIntent)
+            val context = LocalContext.current
+            val coroutineScope = rememberCoroutineScope()
+            val googleAuthManager = GoogleCredentialAuthManager(context)
+            RiEventAppUI(
+                onGoogleLoginClick = {
+                    coroutineScope.launch {
+
+                        val idToken = googleAuthManager.requestGoogleIdToken()
+                        if (idToken != null) {
+                            Log.d("Auth", "Successfully received token: $idToken")
+                            Toast.makeText(context, "You are logged in!", Toast.LENGTH_SHORT).show()
+
+                        } else {
+                            Toast.makeText(context, "Failed to log in", Toast.LENGTH_SHORT).show()
+                        }
                     }
-                )
-            }
+                }
+            )
+        }
+
             /*LoginScreen(
                 state = state,
                 onEmailChange = viewModel::onEmailChange,
@@ -93,6 +78,6 @@ class MainActivity : ComponentActivity() {
 
 
             )*/
-        }
+
     }
 }
