@@ -3,22 +3,27 @@ package com.example.rievent
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.rievent.ui.login.LoginScreen
-
 import com.example.rievent.ui.login.LoginViewModel
-
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.rievent.ui.home.HomeScreen
 import com.example.rievent.ui.welcome.WelcomeScreen
 import com.example.rievent.ui.register.RegisterScreen
 import com.example.rievent.ui.register.RegisterViewModel
 import com.example.rievent.ui.welcome.WelcomeViewModel
+import com.example.rievent.ui.createevent.CreateEventScreen
+import com.example.rievent.ui.createevent.CreateEventViewModel
+import com.example.rievent.ui.myevents.MyEventsScreen
+import com.example.rievent.ui.myevents.MyEventsViewModel
+import com.example.rievent.ui.updateevent.UpdateEventScreen
+import com.google.firebase.auth.FirebaseAuth
 
 @Composable
-fun RiEventAppUI(onGoogleLoginClick: () -> Unit) {
+fun RiEventAppUI() {
     val navController = rememberNavController()
 
     NavHost(navController = navController, startDestination = "welcome") {
@@ -54,16 +59,50 @@ fun RiEventAppUI(onGoogleLoginClick: () -> Unit) {
             )
         }
         composable("welcome"){
+            val welcomeViewModel = WelcomeViewModel(LocalContext.current)
+            val uiState by welcomeViewModel.uiState.collectAsState()
             WelcomeScreen(
                 onLoginClick = { navController.navigate("login") },
                 onRegisterClick = { navController.navigate("register") },
-                onGoogleLoginClick = onGoogleLoginClick,
-                viewModel = WelcomeViewModel(),
+
+                viewModel = welcomeViewModel,
+
                 navController = navController
             )
         }
         composable("home") {
-            HomeScreen()
+            HomeScreen(
+                onLogout = { navController.navigate("welcome") },
+                onNavigateToProfile = { /* navController.navigate("profile") if you have one */ },
+                onNavigateToEvents = { /* navController.navigate("events") if you have one */ },
+                onNavigateToCreateEvent = { navController.navigate("createEvent") },
+                onNavigateToMyEvents = {navController.navigate("myEvents")}
+            )
+        }
+        composable("createEvent") {
+            val viewModel: CreateEventViewModel = viewModel()
+            val currentUserId = FirebaseAuth.getInstance().currentUser?.uid ?: ""
+
+            CreateEventScreen(
+                viewModel = viewModel,
+                currentUserId = currentUserId,
+                onCreated = { navController.navigate("home") }
+            )
+        }
+        composable("myEvents") {
+            val viewModel: MyEventsViewModel = viewModel()
+
+            MyEventsScreen(
+                viewModel = viewModel,
+                navController = navController
+            )
+        }
+        composable("updateEvent/{eventId}") { backStackEntry ->
+            val eventId = backStackEntry.arguments?.getString("eventId") ?: return@composable
+            UpdateEventScreen(
+                eventId = eventId,
+                onUpdated = { navController.navigate("myEvents") }
+            )
         }
     }
 }

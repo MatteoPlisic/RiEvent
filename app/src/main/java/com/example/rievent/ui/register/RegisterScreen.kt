@@ -26,6 +26,7 @@ import com.example.rievent.R
 import java.util.Date
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import com.example.rievent.ui.utils.DatePickerField
 
 
 @Composable
@@ -110,11 +111,12 @@ fun RegisterScreen(
         )
         state.confirmPasswordError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
 
-        DateOfBirthPickerField(
-            dateText = state.dateOfBirth,
+        DatePickerField(
+            label = "Date of Birth",
+            value = state.dateOfBirth,
             onDateSelected = onDateOfBirthChange,
             onTextChange = onDateOfBirthChange,
-
+            error = state.dateOfBirthError
         )
 
         state.dateOfBirthError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
@@ -191,68 +193,5 @@ fun RegisterScreen(
         }
 
         Spacer(modifier = Modifier.height(150.dp))
-    }
-}
-
-@SuppressLint("SimpleDateFormat")
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun DateOfBirthPickerField(
-    dateText: String,
-    onDateSelected: (String) -> Unit,
-    onTextChange: (String) -> Unit,
-    error: String? = null
-) {
-    var showDatePicker by remember { mutableStateOf(false) }
-    val datePickerState = rememberDatePickerState()
-
-    if (showDatePicker) {
-        DatePickerDialog(
-            onDismissRequest = { showDatePicker = false },
-            confirmButton = {
-                TextButton(onClick = {
-                    datePickerState.selectedDateMillis?.let { millis ->
-                        val formatted = SimpleDateFormat("dd-MM-yyyy")
-                            .format(Date(millis))
-                        onDateSelected(formatted)
-                    }
-                    showDatePicker = false
-                }) {
-                    Text("OK")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDatePicker = false }) {
-                    Text("Cancel")
-                }
-            }
-        ) {
-            DatePicker(state = datePickerState)
-        }
-    }
-
-    OutlinedTextField(
-        value = dateText,
-        onValueChange = onTextChange,
-        label = { Text("Date of Birth") },
-        placeholder = { Text("DD-MM-YYYY") },
-        trailingIcon = {
-            IconButton(onClick = { showDatePicker = true }) {
-                Icon(
-                    imageVector = Icons.Default.DateRange,
-                    contentDescription = "Select date"
-                )
-            }
-        },
-        isError = error != null,
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
-    )
-
-    error?.let {
-        Text(
-            text = it,
-            color = MaterialTheme.colorScheme.error,
-            style = MaterialTheme.typography.bodySmall
-        )
     }
 }
