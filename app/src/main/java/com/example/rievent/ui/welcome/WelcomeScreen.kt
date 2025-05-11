@@ -41,6 +41,7 @@ fun WelcomeScreen(
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
 
+
     LaunchedEffect(uiState.success) {
         if (uiState.success) {
             navController.navigate("home") {

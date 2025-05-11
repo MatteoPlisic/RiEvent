@@ -8,6 +8,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -51,6 +52,8 @@ fun Drawer(
                 NavigationDrawerItem(label = { Text("Log out") }, selected = false, onClick = {
                     scope.launch { drawerState.close() }
                     onLogout()
+                    FirebaseAuth.getInstance().signOut()
+
                 })
             }
         }

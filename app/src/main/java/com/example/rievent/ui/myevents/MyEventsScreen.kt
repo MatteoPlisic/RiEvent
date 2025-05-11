@@ -15,19 +15,37 @@ import androidx.compose.foundation.lazy.items
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.material.icons.filled.Edit
 import androidx.navigation.NavController
+import com.example.rievent.ui.utils.Drawer
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MyEventsScreen(viewModel: MyEventsViewModel = viewModel(),navController: NavController) {
+fun MyEventsScreen(viewModel: MyEventsViewModel = viewModel(),
+                   navController: NavController,
+                   onLogout: () -> Unit,
+                   onNavigateToProfile: () -> Unit,
+                   onNavigateToEvents: () -> Unit,
+                   onNavigateToCreateEvent: () -> Unit,
+                   onNavigateToMyEvents: () -> Unit) {
     val currentUserId = FirebaseAuth.getInstance().currentUser?.uid ?: return
     val events by viewModel.events.collectAsState()
 
     var showDialog by remember { mutableStateOf(false) }
     var eventToDelete by remember { mutableStateOf<Event?>(null) }
 
+
     LaunchedEffect(Unit) {
         viewModel.loadEvents(currentUserId)
+
     }
+    Drawer(
+        title = "Home",
+        onLogout = onLogout,
+        onNavigateToProfile = onNavigateToProfile,
+        onNavigateToEvents = onNavigateToEvents,
+        onNavigateToCreateEvent = onNavigateToCreateEvent,
+        onNavigateToMyEvents = onNavigateToMyEvents,
+    ){ innerPadding ->
+
 
     Scaffold(
         topBar = {
@@ -83,6 +101,7 @@ fun MyEventsScreen(viewModel: MyEventsViewModel = viewModel(),navController: Nav
                 text = { Text("Are you sure you want to delete \"${eventToDelete?.name}\"?") }
             )
         }
+    }
     }
 }
 

@@ -25,7 +25,7 @@ fun HomeScreen(
         onNavigateToProfile = onNavigateToProfile,
         onNavigateToEvents = onNavigateToEvents,
         onNavigateToCreateEvent = onNavigateToCreateEvent,
-        onNavigateToMyEvents = onNavigateToMyEvents
+        onNavigateToMyEvents = onNavigateToMyEvents,
     ) { innerPadding ->
         Box(
             modifier = Modifier

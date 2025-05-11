@@ -5,6 +5,7 @@ import android.app.DatePickerDialog
 import android.app.TimePickerDialog
 import android.icu.text.SimpleDateFormat
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -12,8 +13,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.example.rievent.ui.utils.DatePickerField
+import com.example.rievent.ui.utils.Drawer
 import com.example.rievent.ui.utils.TimePickerField
 import com.google.firebase.Timestamp
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.GeoPoint
 import java.util.*
 
@@ -22,7 +26,12 @@ import java.util.*
 fun CreateEventScreen(
     viewModel: CreateEventViewModel,
     onCreated: () -> Unit,
-    currentUserId: String
+    currentUserId: String,
+    onLogout: () -> Unit,
+    onNavigateToProfile: () -> Unit,
+    onNavigateToEvents: () -> Unit,
+    onNavigateToCreateEvent: () -> Unit,
+    onNavigateToMyEvents: () -> Unit
 ) {
     val isLoading by viewModel.isLoading.collectAsState()
     val isSuccess by viewModel.isSuccess.collectAsState()
@@ -41,6 +50,7 @@ fun CreateEventScreen(
     var longitude by remember { mutableStateOf("") }
     var isPublic by remember { mutableStateOf(true) }
     var expanded by remember { mutableStateOf(false) }
+    var ownerName by remember { mutableStateOf("") }
 
     val categoryOptions = listOf("Sports", "Academic", "Business", "Culture", "Concert", "Quizz", "Party")
 
@@ -51,121 +61,154 @@ fun CreateEventScreen(
             onCreated()
         }
     }
-
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(24.dp),
-        contentAlignment = Alignment.Center
+    Drawer(
+        title = "Home",
+        onLogout = onLogout,
+        onNavigateToProfile = onNavigateToProfile,
+        onNavigateToEvents = onNavigateToEvents,
+        onNavigateToCreateEvent = onNavigateToCreateEvent,
+        onNavigateToMyEvents = onNavigateToMyEvents,
     ) {
-        Column(
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.fillMaxWidth(0.9f)
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(top = 80.dp, bottom = 50.dp),
+            contentAlignment = Alignment.Center
         ) {
-            TextField(value = name, onValueChange = { name = it }, label = { Text("Name") })
-            TextField(value = description, onValueChange = { description = it }, label = { Text("Description") })
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.fillMaxWidth(0.9f)
+            ) {
+                item{TextField(value = name, onValueChange = { name = it }, label = { Text("Name") })}
+                item{TextField(
+                    value = description,
+                    onValueChange = { description = it },
+                    label = { Text("Description") })}
 
 
-            ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = !expanded }) {
-                TextField(
-                    value = category,
-                    onValueChange = {},
-                    readOnly = true,
-                    label = { Text("Category") },
-                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
-                    modifier = Modifier.menuAnchor()
-                )
-                ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                    categoryOptions.forEach { option ->
-                        DropdownMenuItem(
-                            text = { Text(option) },
-                            onClick = {
-                                category = option
-                                expanded = false
-                            }
+                item {
+                    ExposedDropdownMenuBox(
+                        expanded = expanded,
+                        onExpandedChange = { expanded = !expanded }) {
+                        TextField(
+                            value = category,
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("Category") },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
+                            modifier = Modifier.menuAnchor()
                         )
+                        ExposedDropdownMenu(
+                            expanded = expanded,
+                            onDismissRequest = { expanded = false }) {
+                            categoryOptions.forEach { option ->
+                                DropdownMenuItem(
+                                    text = { Text(option) },
+                                    onClick = {
+                                        category = option
+                                        expanded = false
+                                    }
+                                )
+                            }
+                        }
                     }
                 }
-            }
+                // Start Date
+                item{DatePickerField(
+                    label = "Start Date",
+                    value = startDate,
+                    onDateSelected = { startDate = it },
+                    onTextChange = { startDate = it }
+                )}
 
-            // Start Date
-            DatePickerField(
-                label = "Start Date",
-                value = startDate,
-                onDateSelected = { startDate = it },
-                onTextChange = { startDate = it }
-            )
+                // Start Time
+                item{TimePickerField(
+                    label = "Start Time",
+                    value = startTime,
+                    onTimeSelected = { startTime = it },
+                    onTextChange = { startTime = it }
+                )}
 
-            // Start Time
-            TimePickerField(
-                label = "Start Time",
-                value = startTime,
-                onTimeSelected = { startTime = it },
-                onTextChange = { startTime = it }
-            )
+                // End Date
+                item{DatePickerField(
+                    label = "End Date",
+                    value = endDate,
+                    onDateSelected = { endDate = it },
+                    onTextChange = { endDate = it }
+                )}
 
-            // End Date
-            DatePickerField(
-                label = "End Date",
-                value = endDate,
-                onDateSelected = { endDate = it },
-                onTextChange = { endDate = it }
-            )
+                // End Time
+                item{TimePickerField(
+                    label = "End Time",
+                    value = endTime,
+                    onTimeSelected = { endTime = it },
+                    onTextChange = { endTime = it }
+                )}
 
-            // End Time
-            TimePickerField(
-                label = "End Time",
-                value = endTime,
-                onTimeSelected = { endTime = it },
-                onTextChange = { endTime = it }
-            )
+                item{TextField(
+                    value = address,
+                    onValueChange = { address = it },
+                    label = { Text("Address") })}
+                item{TextField(
+                    value = latitude,
+                    onValueChange = { latitude = it },
+                    label = { Text("Latitude") })}
+                item{TextField(
+                    value = longitude,
+                    onValueChange = { longitude = it },
+                    label = { Text("Longitude") })}
 
-            TextField(value = address, onValueChange = { address = it }, label = { Text("Address") })
-            TextField(value = latitude, onValueChange = { latitude = it }, label = { Text("Latitude") })
-            TextField(value = longitude, onValueChange = { longitude = it }, label = { Text("Longitude") })
+                item{Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(checked = isPublic, onCheckedChange = { isPublic = it })
+                    Text("Public Event")
+                }}
 
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Checkbox(checked = isPublic, onCheckedChange = { isPublic = it })
-                Text("Public Event")
-            }
+                item{Button(
+                    onClick = {
+                        val formatter = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
+                        val startTimestamp = runCatching {
+                            Timestamp(formatter.parse("$startDate $startTime")!!)
+                        }.getOrNull()
+                        val endTimestamp = runCatching {
+                            Timestamp(formatter.parse("$endDate $endTime")!!)
+                        }.getOrNull()
 
-            Button(
-                onClick = {
-                    val formatter = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
-                    val startTimestamp = runCatching {
-                        Timestamp(formatter.parse("$startDate $startTime")!!)
-                    }.getOrNull()
-                    val endTimestamp = runCatching {
-                        Timestamp(formatter.parse("$endDate $endTime")!!)
-                    }.getOrNull()
+                        val geoPoint = if (latitude.isNotBlank() && longitude.isNotBlank()) {
+                            GeoPoint(latitude.toDouble(), longitude.toDouble())
+                        } else null
 
-                    val geoPoint = if (latitude.isNotBlank() && longitude.isNotBlank()) {
-                        GeoPoint(latitude.toDouble(), longitude.toDouble())
-                    } else null
+                        val db = FirebaseFirestore.getInstance()
+                        val ownerName = FirebaseAuth.getInstance().currentUser?.displayName ?: ""
 
-                    val event = Event(
-                        name = name,
-                        description = description,
-                        category = category,
-                        ownerId = currentUserId,
-                        startTime = startTimestamp,
-                        endTime = endTimestamp,
-                        address = address,
-                        location = geoPoint,
-                        isPublic = isPublic
-                    )
 
-                    viewModel.createEvent(event)
-                },
-                enabled = !isLoading
-            ) {
-                Text(if (isLoading) "Creating..." else "Create Event")
-            }
 
-            if (errorMessage != null) {
-                Text("Error: $errorMessage", color = MaterialTheme.colorScheme.error)
-            }
+                                val event = Event(
+                                    name = name,
+                                    description = description,
+                                    category = category,
+                                    ownerId = currentUserId,
+                                    startTime = startTimestamp,
+                                    endTime = endTimestamp,
+                                    address = address,
+                                    location = geoPoint,
+                                    isPublic = isPublic,
+                                    ownerName = ownerName
+                                )
+
+                                viewModel.createEvent(event)
+
+                    }
+                    //enabled = !isLoading
+                ) {
+                    Text(if (isLoading) "Creating..." else "Create Event")
+                }
+
+                if (errorMessage != null) {
+                    Text("Error: $errorMessage", color = MaterialTheme.colorScheme.error)
+                }
+            }}
+
         }
     }
 }

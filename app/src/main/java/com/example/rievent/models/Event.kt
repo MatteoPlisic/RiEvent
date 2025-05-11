@@ -10,9 +10,10 @@ data class Event(
     val startTime: Timestamp? = null,
     val endTime: Timestamp? = null,
     val address: String = "",
-    val location: GeoPoint? = null,              // Geographical coordinates
-    val attendees: List<String> = emptyList(),   // List of user IDs
+    val location: GeoPoint? = null,
+    val attendees: List<String> = emptyList(),
     val imageUrl: String? = null,
     val isPublic: Boolean = true,
-    val createdAt: Timestamp = Timestamp.now()
+    val createdAt: Timestamp = Timestamp.now(),
+    val ownerName: String = ""
 )

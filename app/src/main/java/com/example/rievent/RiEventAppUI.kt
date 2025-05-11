@@ -10,6 +10,7 @@ import androidx.navigation.compose.rememberNavController
 import com.example.rievent.ui.login.LoginScreen
 import com.example.rievent.ui.login.LoginViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.rievent.ui.allevents.AllEventsScreen
 import com.example.rievent.ui.home.HomeScreen
 import com.example.rievent.ui.welcome.WelcomeScreen
 import com.example.rievent.ui.register.RegisterScreen
@@ -25,8 +26,12 @@ import com.google.firebase.auth.FirebaseAuth
 @Composable
 fun RiEventAppUI() {
     val navController = rememberNavController()
-
-    NavHost(navController = navController, startDestination = "welcome") {
+    val startDestination = if (FirebaseAuth.getInstance().currentUser != null) {
+        "home"
+    } else {
+        "welcome"
+    }
+    NavHost(navController = navController, startDestination = startDestination) {
         composable("login") {
             val loginViewModel: LoginViewModel = viewModel()
             val uiState by loginViewModel.uiState.collectAsState()
@@ -72,9 +77,9 @@ fun RiEventAppUI() {
         }
         composable("home") {
             HomeScreen(
-                onLogout = { navController.navigate("welcome") },
+                onLogout = { FirebaseAuth.getInstance().signOut(); navController.navigate("welcome") },
                 onNavigateToProfile = { /* navController.navigate("profile") if you have one */ },
-                onNavigateToEvents = { /* navController.navigate("events") if you have one */ },
+                onNavigateToEvents = {  navController.navigate("events")},
                 onNavigateToCreateEvent = { navController.navigate("createEvent") },
                 onNavigateToMyEvents = {navController.navigate("myEvents")}
             )
@@ -86,7 +91,13 @@ fun RiEventAppUI() {
             CreateEventScreen(
                 viewModel = viewModel,
                 currentUserId = currentUserId,
-                onCreated = { navController.navigate("home") }
+                onCreated = { navController.navigate("home") },
+                onLogout = { FirebaseAuth.getInstance().signOut(); navController.navigate("welcome") },
+                onNavigateToProfile = { /* navController.navigate("profile") if you have one */ },
+                onNavigateToEvents = {  navController.navigate("events")},
+                onNavigateToCreateEvent = { navController.navigate("createEvent") },
+                onNavigateToMyEvents = {navController.navigate("myEvents")}
+
             )
         }
         composable("myEvents") {
@@ -94,7 +105,12 @@ fun RiEventAppUI() {
 
             MyEventsScreen(
                 viewModel = viewModel,
-                navController = navController
+                navController = navController,
+                onLogout = { FirebaseAuth.getInstance().signOut(); navController.navigate("welcome") },
+                onNavigateToProfile = { /* navController.navigate("profile") if you have one */ },
+                onNavigateToEvents = {  navController.navigate("events")},
+                onNavigateToCreateEvent = { navController.navigate("createEvent") },
+                onNavigateToMyEvents = {navController.navigate("myEvents")}
             )
         }
         composable("updateEvent/{eventId}") { backStackEntry ->
@@ -102,6 +118,15 @@ fun RiEventAppUI() {
             UpdateEventScreen(
                 eventId = eventId,
                 onUpdated = { navController.navigate("myEvents") }
+            )
+        }
+        composable("events") {
+            AllEventsScreen(
+                onLogout = { FirebaseAuth.getInstance().signOut(); navController.navigate("welcome") },
+                onNavigateToProfile = { /* navController.navigate("profile") if you have one */ },
+                onNavigateToEvents = {  navController.navigate("events")},
+                onNavigateToCreateEvent = { navController.navigate("createEvent") },
+                onNavigateToMyEvents = {navController.navigate("myEvents")}
             )
         }
     }

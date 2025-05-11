@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.firebase.firestore.FirebaseFirestore
 import Event
+import com.example.rievent.models.EventRSPV
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
@@ -38,6 +39,8 @@ class CreateEventViewModel : ViewModel() {
                     _isLoading.value = false
                     _errorMessage.value = e.localizedMessage
                 }
+
+            db.collection("event_rspv").add(EventRSPV(event.id.toString(), EmptyList<String>(), 0, 0))
         }
     }
 

@@ -1,18 +1,25 @@
 package com.example.rievent.ui.register
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import androidx.navigation.navOptions
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 
 class RegisterViewModel : ViewModel() {
     private val _uiState = MutableStateFlow(RegisterUiState())
     val uiState: StateFlow<RegisterUiState> = _uiState
 
+    private val _navigateToHome = MutableSharedFlow<Unit>(replay = 1)
+    val navigateToHome: SharedFlow<Unit> = _navigateToHome
 
     fun onEmailChange(value: String) {
         _uiState.update { it.copy(email = value, emailError = null) }
@@ -88,8 +95,23 @@ class RegisterViewModel : ViewModel() {
                             _uiState.update { it.copy(emailError = "User created but failed to save profile: ${e.message}") }
                         }
 
-                    navOptions {  }
 
+                    FirebaseAuth.getInstance().signInWithEmailAndPassword(state.email, state.password).addOnCompleteListener { task ->
+                        if (task.isSuccessful) {
+                            // ✅ Login success
+                            Log.d(
+                                "FirebaseLogin",
+                                "Logged in as: ${FirebaseAuth.getInstance().currentUser?.email}"
+                            )
+                            _uiState.update { it.copy(success = true) }
+
+                            viewModelScope.launch {
+                                _navigateToHome.emit(Unit)
+                            }
+                        } else {
+                            // ❌ Login failed
+                        }
+                    }
                 } else {
                     val error = task.exception?.localizedMessage ?: "Registration failed"
                     _uiState.update { it.copy(emailError = error) }
