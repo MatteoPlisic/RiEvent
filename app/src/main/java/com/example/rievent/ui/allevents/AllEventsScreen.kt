@@ -11,13 +11,14 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import Event
+import Event // Assuming Event data class is in the root package or correctly imported
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.sp
-import com.example.rievent.models.EventRSPV
+import com.example.rievent.models.EventRSPV // Ensure this import is correct
 import com.example.rievent.ui.utils.Drawer
 import com.google.firebase.auth.FirebaseAuth
+import androidx.compose.runtime.DisposableEffect
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -35,11 +36,17 @@ fun AllEventsScreen(viewModel: AllEventsViewModel = viewModel(),
     var selectedCategory by remember { mutableStateOf("Any") }
     val categoryOptions = listOf("Any","Sports", "Academic", "Business", "Culture", "Concert", "Quizz", "Party")
 
-
-
     LaunchedEffect(Unit) {
-        viewModel.loadAllPublicEvents()
+        viewModel.loadAllPublicEvents() // Initial load
     }
+
+    // When search parameters change, call viewModel.search
+    // This ensures that if any parameter changes, the search is re-triggered.
+    LaunchedEffect(searchText, searchByUser, selectedCategory) {
+        viewModel.search(searchText, searchByUser, selectedCategory)
+    }
+
+
     Drawer(
         title = "Home",
         onLogout = onLogout,
@@ -51,17 +58,12 @@ fun AllEventsScreen(viewModel: AllEventsViewModel = viewModel(),
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(top = 90.dp)
+                .padding(top = 90.dp, start = 16.dp, end = 16.dp, bottom = 16.dp) // Added padding
 
         ) {
-
-            // Search bar
             OutlinedTextField(
                 value = searchText,
-                onValueChange = {
-                    searchText = it
-                    viewModel.search(it, searchByUser, selectedCategory)
-                },
+                onValueChange = { searchText = it /* LaunchedEffect above will trigger search */ },
                 modifier = Modifier.fillMaxWidth(),
                 label = { Text("Search") },
                 trailingIcon = {
@@ -72,16 +74,15 @@ fun AllEventsScreen(viewModel: AllEventsViewModel = viewModel(),
                 }
             )
 
-            // Toggle between Event and User search
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically // Align items in row
             ) {
-                // 1) Category dropdown
                 ExposedDropdownMenuBox(
-                    modifier = Modifier.height(48.dp),
+                    modifier = Modifier.weight(1.5f), // Give more space to dropdown
                     expanded = expandedCategory,
                     onExpandedChange = { expandedCategory = !expandedCategory }
                 ) {
@@ -91,9 +92,7 @@ fun AllEventsScreen(viewModel: AllEventsViewModel = viewModel(),
                         readOnly = true,
                         label = { Text("Category") },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expandedCategory) },
-                        modifier = Modifier
-                            .menuAnchor()
-                            .width(140.dp)
+                        modifier = Modifier.menuAnchor()
                     )
                     ExposedDropdownMenu(
                         expanded = expandedCategory,
@@ -105,55 +104,55 @@ fun AllEventsScreen(viewModel: AllEventsViewModel = viewModel(),
                                 onClick = {
                                     selectedCategory = category
                                     expandedCategory = false
-
-                                    viewModel.search(searchText, searchByUser, selectedCategory)
+                                    // LaunchedEffect above will trigger search
                                 }
                             )
                         }
                     }
                 }
 
-                // 2) “By Event” chip
                 FilterChip(
-                    modifier = Modifier.height(48.dp),
+                    modifier = Modifier.weight(1f),
                     selected = !searchByUser,
                     onClick = {
                         searchByUser = false
-                        viewModel.search(searchText, false, selectedCategory)
+                        // LaunchedEffect above will trigger search
                     },
-                    label = { Text("By Event") }
+                    label = { Text("By Event", maxLines = 1) } // Prevent text wrapping issues
                 )
 
-                // 3) “By User” chip
                 FilterChip(
-                    modifier = Modifier.height(48.dp),
+                    modifier = Modifier.weight(1f),
                     selected = searchByUser,
                     onClick = {
                         searchByUser = true
-                        viewModel.search(searchText, true, selectedCategory)
+                        // LaunchedEffect above will trigger search
                     },
-                    label = { Text("By User") }
+                    label = { Text("By User", maxLines = 1) } // Prevent text wrapping issues
                 )
             }
 
-
-            // List of event cards
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                items(events) { event ->
-                    AllEventCard(
-                        event,
-                        viewModel
-                    )
+            if (events.isEmpty() && searchText.isNotEmpty()) {
+                Text("No events found matching your criteria.", modifier = Modifier.padding(16.dp))
+            } else if (events.isEmpty()) {
+                Text("No public events available at the moment.", modifier = Modifier.padding(16.dp))
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                    contentPadding = PaddingValues(bottom = 16.dp) // Padding at the bottom of the list
+                ) {
+                    items(events, key = { event -> event.id ?: event.hashCode() }) { event -> // Use a stable key
+                        AllEventCard(
+                            event = event,
+                            allEventsViewModel = viewModel
+                        )
+                    }
                 }
             }
         }
     }
 }
-
-
 
 @Composable
 fun AllEventCard(
@@ -161,67 +160,56 @@ fun AllEventCard(
     allEventsViewModel: AllEventsViewModel,
     modifier: Modifier = Modifier
 ) {
-    // 1) A local mutable state to hold the RSVP once it arrives
-    var eventRspvList by remember { mutableStateOf<List<EventRSPV>?>(null) }
-    var thisUserComing     by remember { mutableStateOf(false) }
-    var thisUserMaybeComing by remember { mutableStateOf(false) }
-    var thisUserNotComing   by remember { mutableStateOf(false) }
-    // 2) Fire off the one‐time callback when the card first composes (or when id changes)
-    LaunchedEffect(event.id) {
-        allEventsViewModel.rsvp(event.id) { rsvpResult ->
-            eventRspvList = rsvpResult
+    val rsvpMap by allEventsViewModel.eventsRsvpsMap.collectAsState()
+    val eventRsvpData: EventRSPV? = remember(event.id, rsvpMap) {
+        event.id?.let { rsvpMap[it] }
+    }
+
+    val currentUid = remember { FirebaseAuth.getInstance().currentUser?.uid }
+
+    // Manage listener lifecycle for this card's event using DisposableEffect
+    DisposableEffect(event.id, allEventsViewModel) { // Keys that trigger re-running the effect
+        val currentEventId = event.id // Capture event.id for use in onDispose
+
+        if (currentEventId != null && currentEventId.isNotBlank()) {
+            allEventsViewModel.listenToRsvpForEvent(currentEventId)
+        }
+
+        // onDispose is the cleanup lambda provided by DisposableEffectScope
+        onDispose {
+            if (currentEventId != null && currentEventId.isNotBlank()) {
+                allEventsViewModel.stopListeningToRsvp(currentEventId)
+            }
         }
     }
 
-    LaunchedEffect(eventRspvList) {
-        // only run when eventRspvList changes from null → data
-        val currentUid = FirebaseAuth.getInstance().currentUser?.uid
-        thisUserComing = eventRspvList
-            ?.firstOrNull { it.eventId == event.id }
-            ?.coming_users
-            ?.any { it.userId == currentUid }
-            ?: false
-        thisUserNotComing = eventRspvList
-            ?.firstOrNull { it.eventId == event.id }
-            ?.not_coming_users
-            ?.any { it.userId == currentUid }
-            ?: false
-
-        thisUserMaybeComing = eventRspvList
-            ?.firstOrNull { it.eventId == event.id }
-            ?.maybe_users
-            ?.any { it.userId == currentUid }
-            ?: false
+    // Derived state for user's RSVP status for this event
+    val (thisUserComing, thisUserMaybeComing, thisUserNotComing) = remember(eventRsvpData, currentUid) {
+        if (currentUid == null || eventRsvpData == null) {
+            Triple(false, false, false)
+        } else {
+            Triple(
+                eventRsvpData.coming_users.any { it.userId == currentUid },
+                eventRsvpData.maybe_users.any { it.userId == currentUid },
+                eventRsvpData.not_coming_users.any { it.userId == currentUid }
+            )
+        }
     }
+
+    val comingCount = eventRsvpData?.coming_users?.size ?: 0
+    val maybeComingCount = eventRsvpData?.maybe_users?.size ?: 0
+    val notComingCount = eventRsvpData?.not_coming_users?.size ?: 0
 
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .padding(8.dp),
+            .padding(horizontal = 8.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text(event.name, style = MaterialTheme.typography.titleMedium)
-
-            Spacer(Modifier.height(8.dp))
-
-            var comingCount = 0
-            var notComingCount = 0
-            var maybeComingCount = 0
-
-
-            // show a loading indicator until the RSVP comes back
-            if (eventRspvList == null) {
-                CircularProgressIndicator(modifier = Modifier.size(24.dp))
-            } else {
-                comingCount= eventRspvList!!.firstOrNull{ it.eventId == event.id }?.coming_users!!.size
-                maybeComingCount = eventRspvList!!.firstOrNull{ it.eventId == event.id }?.maybe_users!!.size
-                notComingCount  = eventRspvList!!.firstOrNull{ it.eventId == event.id }?.not_coming_users!!.size
-
-
-
-
-            }
+            Text(event.name, style = MaterialTheme.typography.titleLarge)
+            Text("Category: ${event.category}", style = MaterialTheme.typography.bodyMedium)
+            Text("By: ${event.ownerName ?: "N/A"}", style = MaterialTheme. typography.bodySmall)
 
             Spacer(Modifier.height(12.dp))
 
@@ -229,47 +217,42 @@ fun AllEventCard(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // “I’m coming” button – green
                 Button(
-                    onClick = { thisUserComing = true; thisUserNotComing = false;thisUserMaybeComing = false; allEventsViewModel.updateRsvp(event.id, RsvpStatus.COMING) },
+                    onClick = { allEventsViewModel.updateRsvp(event.id, RsvpStatus.COMING) },
                     modifier = Modifier.weight(1f),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = if(!thisUserComing) Color.Green else Color.LightGray,
+                        containerColor = if (thisUserComing) Color(0xFF66BB6A) else Color.Green,
                         contentColor = Color.White
                     ),
                     enabled = !thisUserComing
                 ) {
-                    Text("I'm coming:\n ${comingCount}",fontSize = 12.sp)
+                    Text("Coming\n${comingCount}", fontSize = 11.sp, lineHeight = 12.sp)
                 }
 
-                // “Maybe” button – yellow
                 Button(
-                    onClick = { thisUserComing = false; thisUserNotComing = false;thisUserMaybeComing = true; allEventsViewModel.updateRsvp(event.id, RsvpStatus.MAYBE) },
-                    modifier = Modifier.weight(1f).align(Alignment.CenterVertically),
+                    onClick = { allEventsViewModel.updateRsvp(event.id, RsvpStatus.MAYBE) },
+                    modifier = Modifier.weight(1f),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = if(!thisUserMaybeComing) Color.Yellow else Color.LightGray,
+                        containerColor = if (thisUserMaybeComing) Color(0xFFFFCA28) else Color.Yellow,
                         contentColor = Color.Black
                     ),
                     enabled = !thisUserMaybeComing
                 ) {
-                    Text("Maybe:\n ${maybeComingCount}",fontSize = 12.sp)
+                    Text("Maybe\n${maybeComingCount}", fontSize = 11.sp, lineHeight = 12.sp)
                 }
 
-                // “Not coming” button – red
                 Button(
-                    onClick = { thisUserComing = false; thisUserNotComing = true;thisUserMaybeComing = false; allEventsViewModel.updateRsvp(event.id, RsvpStatus.NOT_COMING) },
+                    onClick = { allEventsViewModel.updateRsvp(event.id, RsvpStatus.NOT_COMING) },
                     modifier = Modifier.weight(1f),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = if(!thisUserNotComing) Color.Red else Color.LightGray ,
+                        containerColor = if (thisUserNotComing) Color(0xFFEF5350) else Color.Red,
                         contentColor = Color.White
                     ),
                     enabled = !thisUserNotComing
-
                 ) {
-                    Text("Not coming:\n  ${notComingCount}", fontSize = 12.sp)
+                    Text("Not Coming\n${notComingCount}", fontSize = 11.sp, lineHeight = 12.sp)
                 }
             }
         }
     }
 }
-
