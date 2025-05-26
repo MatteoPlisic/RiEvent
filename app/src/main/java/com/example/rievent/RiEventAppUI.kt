@@ -1,5 +1,6 @@
 package com.example.rievent
 
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -20,6 +21,7 @@ import com.example.rievent.ui.createevent.CreateEventScreen
 import com.example.rievent.ui.createevent.CreateEventViewModel
 import com.example.rievent.ui.myevents.MyEventsScreen
 import com.example.rievent.ui.myevents.MyEventsViewModel
+import com.example.rievent.ui.singleevent.SingleEventScreen
 import com.example.rievent.ui.updateevent.UpdateEventScreen
 import com.google.firebase.auth.FirebaseAuth
 
@@ -126,8 +128,23 @@ fun RiEventAppUI() {
                 onNavigateToProfile = { /* navController.navigate("profile") if you have one */ },
                 onNavigateToEvents = {  navController.navigate("events")},
                 onNavigateToCreateEvent = { navController.navigate("createEvent") },
-                onNavigateToMyEvents = {navController.navigate("myEvents")}
+                onNavigateToMyEvents = {navController.navigate("myEvents")},
+                onNavigateToSingleEvent = { eventId ->
+                    navController.navigate("singleEvent/$eventId")
+                }
             )
+        }
+        composable("singleEvent/{eventId}") { backStackEntry ->
+            val eventId = backStackEntry.arguments?.getString("eventId")
+            if (eventId != null) {
+                SingleEventScreen(
+                    eventId = eventId,
+                    onBack = { navController.popBackStack() }
+                )
+            } else {
+                // Handle error: eventId not found
+                Text("Error: Event ID missing.")
+            }
         }
     }
 }

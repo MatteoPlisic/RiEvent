@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import com.google.firebase.firestore.FirebaseFirestore
 import Event // Assuming Event data class is in the root package or correctly imported
 import android.util.Log
+import androidx.lifecycle.viewModelScope
+import androidx.navigation.navOptions
 import com.example.rievent.models.EventRSPV
 import com.example.rievent.models.RsvpUser
 // Import the extension function if it's in a different package
@@ -14,6 +16,10 @@ import com.google.firebase.firestore.ListenerRegistration
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import com.google.firebase.Timestamp
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.ZoneId
 
@@ -44,10 +50,14 @@ class AllEventsViewModel : ViewModel() {
     private var currentSearchByUser = false
     private var currentSelectedCategory = "Any"
     private var currentSelectedDate: LocalDate? = null // Added for date filter state
+    private val _navigateToSingleEventAction = MutableSharedFlow<String>(
+        replay = 0,
+        extraBufferCapacity = 1,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST
+    )
+    val navigateToSingleEventAction: SharedFlow<String> = _navigateToSingleEventAction
 
-    init {
-        // loadAllPublicEvents() // Rely on Composable's LaunchedEffect
-    }
+
 
     fun loadAllPublicEvents() {
         eventsListenerRegistration?.remove()
@@ -212,5 +222,16 @@ class AllEventsViewModel : ViewModel() {
         rsvpListeners.values.forEach { it.remove() }
         rsvpListeners.clear()
         Log.d("AllEventsViewModel", "ViewModel cleared, listeners removed.")
+    }
+
+    fun onEventClicked(eventId: String?) {
+        if (eventId == null || eventId.isBlank()) {
+            Log.e("NAV_EVENT", "Cannot navigate, eventId is null or blank.")
+            return
+        }
+        viewModelScope.launch {
+            Log.d("NAV_EVENT", "Requesting navigation to eventId: $eventId")
+            _navigateToSingleEventAction.emit(eventId)
+        }
     }
 }

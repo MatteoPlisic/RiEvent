@@ -53,6 +53,9 @@ dependencies {
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
     implementation(libs.googleid)
+    implementation(libs.volley)
+    implementation(libs.androidx.espresso.core)
+    implementation(libs.play.services.base)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
@@ -72,7 +75,7 @@ dependencies {
     implementation("com.google.firebase:firebase-auth")
     implementation("com.google.firebase:firebase-firestore")
     implementation("androidx.navigation:navigation-compose:2.8.9")
-
+    implementation("io.coil-kt:coil-compose:2.6.0")
     implementation("com.google.android.libraries.identity.googleid:googleid:1.1.0")
     implementation("androidx.compose.material:material-icons-extended")
 

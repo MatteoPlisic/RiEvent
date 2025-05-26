@@ -35,40 +35,33 @@ import java.time.format.DateTimeFormatter
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AllEventsScreen(viewModel: AllEventsViewModel = viewModel(),
-                    onLogout: () -> Unit,
-                    onNavigateToProfile: () -> Unit,
-                    onNavigateToEvents: () -> Unit,
-                    onNavigateToCreateEvent: () -> Unit,
-                    onNavigateToMyEvents: () -> Unit) {
+fun AllEventsScreen(
+    viewModel: AllEventsViewModel = viewModel(),
+    onLogout: () -> Unit,
+    onNavigateToProfile: () -> Unit,
+    onNavigateToEvents: () -> Unit,
+    onNavigateToCreateEvent: () -> Unit,
+    onNavigateToMyEvents: () -> Unit,
+    onNavigateToSingleEvent: (eventId: String) -> Unit // New navigation callback
+) {
     val events by viewModel.events.collectAsState()
 
+    // ... (searchText, searchByUser, selectedCategory, selectedDate, datePickerState states remain)
     var searchText by remember { mutableStateOf("") }
     var searchByUser by remember { mutableStateOf(false) }
     var expandedCategory by remember { mutableStateOf(false) }
     var selectedCategory by remember { mutableStateOf("Any") }
     val categoryOptions = listOf("Any","Sports", "Academic", "Business", "Culture", "Concert", "Quizz", "Party")
 
-    // State for Date Picker
     var selectedDate by remember { mutableStateOf<LocalDate?>(null) }
     var showDatePickerDialog by remember { mutableStateOf(false) }
     val dateFormatter = remember { DateTimeFormatter.ofPattern("dd MMM yyyy") }
 
-
-    LaunchedEffect(Unit) {
-        viewModel.loadAllPublicEvents() // Initial load
-    }
-
-    // When search parameters change, call viewModel.search
-    LaunchedEffect(searchText, searchByUser, selectedCategory, selectedDate) { // Added selectedDate
-        viewModel.search(searchText, searchByUser, selectedCategory, selectedDate) // Pass selectedDate
-    }
-
     val datePickerState = rememberDatePickerState(
         initialSelectedDateMillis = selectedDate?.atStartOfDay(ZoneId.systemDefault())?.toInstant()?.toEpochMilli(),
-        yearRange = IntRange(LocalDate.now().year - 5, LocalDate.now().year + 5) // Optional: adjust year range
+        yearRange = IntRange(LocalDate.now().year - 10, LocalDate.now().year + 10)
     )
-
+    // ... (datePicker dialog remains the same)
     if (showDatePickerDialog) {
         DatePickerDialog(
             onDismissRequest = { showDatePickerDialog = false },
@@ -88,6 +81,23 @@ fun AllEventsScreen(viewModel: AllEventsViewModel = viewModel(),
         }
     }
 
+
+    LaunchedEffect(Unit) {
+        viewModel.loadAllPublicEvents() // Initial load
+    }
+
+    LaunchedEffect(searchText, searchByUser, selectedCategory, selectedDate) {
+        viewModel.search(searchText, searchByUser, selectedCategory, selectedDate)
+    }
+
+    // Collect navigation actions from ViewModel
+    LaunchedEffect(key1 = viewModel.navigateToSingleEventAction) {
+        viewModel.navigateToSingleEventAction.collect { eventId ->
+            Log.d("AllEventsScreen", "Collected navigation action for eventId: $eventId")
+            onNavigateToSingleEvent(eventId)
+        }
+    }
+
     Drawer(
         title = "Home",
         onLogout = onLogout,
@@ -101,6 +111,7 @@ fun AllEventsScreen(viewModel: AllEventsViewModel = viewModel(),
                 .fillMaxSize()
                 .padding(top = 90.dp, start = 16.dp, end = 16.dp, bottom = 16.dp)
         ) {
+            // ... (OutlinedTextField for search, Row for category and filter chips, OutlinedTextField for date filter remain the same)
             OutlinedTextField(
                 value = searchText,
                 onValueChange = { searchText = it },
@@ -113,7 +124,7 @@ fun AllEventsScreen(viewModel: AllEventsViewModel = viewModel(),
                     )
                 }
             )
-            Spacer(modifier = Modifier.height(8.dp)) // Added spacer
+            Spacer(modifier = Modifier.height(8.dp))
 
             Row(
                 modifier = Modifier
@@ -166,42 +177,25 @@ fun AllEventsScreen(viewModel: AllEventsViewModel = viewModel(),
                 )
             }
 
-            // Date Filter Field
             OutlinedTextField(
                 value = selectedDate?.format(dateFormatter) ?: "Any Date",
-                onValueChange = { /* This is fine for a read-only field */ },
-                readOnly = true, // This should generally be fine with Modifier.clickable
+                onValueChange = {},
+                readOnly = true,
                 label = { Text("Filter by Date") },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable(
-                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }, // Explicitly provide an interaction source
-                        indication = null, // Optionally remove ripple if it was interfering
-                        onClick = {
-                           // Log.d(DATE_PICKER_DEBUG_TAG, "Date TextField MODIFIER onClick fired. Current showDatePickerDialog: $showDatePickerDialog. Setting to true.")
-                            showDatePickerDialog = true // This is the crucial line
-                        }
-                    ),
+                    .clickable { showDatePickerDialog = true },
                 trailingIcon = {
                     if (selectedDate != null) {
-                        IconButton(onClick = {
-                           // Log.d(DATE_PICKER_DEBUG_TAG, "Clear Date Filter IconButton clicked.")
-                            selectedDate = null
-                            datePickerState.selectedDateMillis = null // Reset DatePicker's internal state
-                        }) {
+                        IconButton(onClick = { selectedDate = null }) {
                             Icon(Icons.Filled.Clear, contentDescription = "Clear Date Filter")
                         }
                     } else {
-                        // Make the DateRange icon itself an IconButton to test clickability
-                        IconButton(onClick = {
-                           // Log.d(DATE_PICKER_DEBUG_TAG, "DateRange ICONBUTTON clicked. Setting showDatePickerDialog = true")
-                            showDatePickerDialog = true
-                        }) {
-                            Icon(Icons.Filled.DateRange, contentDescription = "Select Date")
-                        }
+                        Icon(Icons.Filled.DateRange, contentDescription = "Select Date")
                     }
-                })
-            Spacer(modifier = Modifier.height(16.dp)) // Added spacer
+                }
+            )
+            Spacer(modifier = Modifier.height(16.dp))
 
 
             if (events.isEmpty() && (searchText.isNotEmpty() || selectedCategory != "Any" || selectedDate != null)) {
@@ -218,6 +212,7 @@ fun AllEventsScreen(viewModel: AllEventsViewModel = viewModel(),
                         AllEventCard(
                             event = event,
                             allEventsViewModel = viewModel
+                            // onClick will be handled by the Card's modifier now
                         )
                     }
                 }
@@ -272,7 +267,8 @@ fun AllEventCard(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 8.dp), // Consider if this horizontal padding is needed if parent Column has padding
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        onClick = { allEventsViewModel.onEventClicked(event.id) }
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(event.name, style = MaterialTheme.typography.titleLarge)
