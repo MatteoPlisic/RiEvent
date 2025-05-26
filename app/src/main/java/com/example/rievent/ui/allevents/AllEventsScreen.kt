@@ -12,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import Event // Assuming Event data class is in the root package or correctly imported
+import android.util.Log
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.sp
@@ -19,6 +20,18 @@ import com.example.rievent.models.EventRSPV // Ensure this import is correct
 import com.example.rievent.ui.utils.Drawer
 import com.google.firebase.auth.FirebaseAuth
 import androidx.compose.runtime.DisposableEffect
+
+// Added imports for Date Picker
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.rememberDatePickerState
+import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.foundation.clickable
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -36,16 +49,44 @@ fun AllEventsScreen(viewModel: AllEventsViewModel = viewModel(),
     var selectedCategory by remember { mutableStateOf("Any") }
     val categoryOptions = listOf("Any","Sports", "Academic", "Business", "Culture", "Concert", "Quizz", "Party")
 
+    // State for Date Picker
+    var selectedDate by remember { mutableStateOf<LocalDate?>(null) }
+    var showDatePickerDialog by remember { mutableStateOf(false) }
+    val dateFormatter = remember { DateTimeFormatter.ofPattern("dd MMM yyyy") }
+
+
     LaunchedEffect(Unit) {
         viewModel.loadAllPublicEvents() // Initial load
     }
 
     // When search parameters change, call viewModel.search
-    // This ensures that if any parameter changes, the search is re-triggered.
-    LaunchedEffect(searchText, searchByUser, selectedCategory) {
-        viewModel.search(searchText, searchByUser, selectedCategory)
+    LaunchedEffect(searchText, searchByUser, selectedCategory, selectedDate) { // Added selectedDate
+        viewModel.search(searchText, searchByUser, selectedCategory, selectedDate) // Pass selectedDate
     }
 
+    val datePickerState = rememberDatePickerState(
+        initialSelectedDateMillis = selectedDate?.atStartOfDay(ZoneId.systemDefault())?.toInstant()?.toEpochMilli(),
+        yearRange = IntRange(LocalDate.now().year - 5, LocalDate.now().year + 5) // Optional: adjust year range
+    )
+
+    if (showDatePickerDialog) {
+        DatePickerDialog(
+            onDismissRequest = { showDatePickerDialog = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    showDatePickerDialog = false
+                    datePickerState.selectedDateMillis?.let { millis ->
+                        selectedDate = Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDate()
+                    }
+                }) { Text("OK") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePickerDialog = false }) { Text("Cancel") }
+            }
+        ) {
+            DatePicker(state = datePickerState)
+        }
+    }
 
     Drawer(
         title = "Home",
@@ -58,31 +99,31 @@ fun AllEventsScreen(viewModel: AllEventsViewModel = viewModel(),
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(top = 90.dp, start = 16.dp, end = 16.dp, bottom = 16.dp) // Added padding
-
+                .padding(top = 90.dp, start = 16.dp, end = 16.dp, bottom = 16.dp)
         ) {
             OutlinedTextField(
                 value = searchText,
-                onValueChange = { searchText = it /* LaunchedEffect above will trigger search */ },
+                onValueChange = { searchText = it },
                 modifier = Modifier.fillMaxWidth(),
-                label = { Text("Search") },
+                label = { Text("Search Event/User") },
                 trailingIcon = {
                     Icon(
                         imageVector = if (searchByUser) Icons.Default.Person else Icons.Default.Search,
-                        contentDescription = "Search Mode"
+                        contentDescription = "Search Mode Icon"
                     )
                 }
             )
+            Spacer(modifier = Modifier.height(8.dp)) // Added spacer
 
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(vertical = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically // Align items in row
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 ExposedDropdownMenuBox(
-                    modifier = Modifier.weight(1.5f), // Give more space to dropdown
+                    modifier = Modifier.weight(1.5f),
                     expanded = expandedCategory,
                     onExpandedChange = { expandedCategory = !expandedCategory }
                 ) {
@@ -104,7 +145,6 @@ fun AllEventsScreen(viewModel: AllEventsViewModel = viewModel(),
                                 onClick = {
                                     selectedCategory = category
                                     expandedCategory = false
-                                    // LaunchedEffect above will trigger search
                                 }
                             )
                         }
@@ -114,25 +154,57 @@ fun AllEventsScreen(viewModel: AllEventsViewModel = viewModel(),
                 FilterChip(
                     modifier = Modifier.weight(1f),
                     selected = !searchByUser,
-                    onClick = {
-                        searchByUser = false
-                        // LaunchedEffect above will trigger search
-                    },
-                    label = { Text("By Event", maxLines = 1) } // Prevent text wrapping issues
+                    onClick = { searchByUser = false },
+                    label = { Text("By Event", maxLines = 1) }
                 )
 
                 FilterChip(
                     modifier = Modifier.weight(1f),
                     selected = searchByUser,
-                    onClick = {
-                        searchByUser = true
-                        // LaunchedEffect above will trigger search
-                    },
-                    label = { Text("By User", maxLines = 1) } // Prevent text wrapping issues
+                    onClick = { searchByUser = true },
+                    label = { Text("By User", maxLines = 1) }
                 )
             }
 
-            if (events.isEmpty() && searchText.isNotEmpty()) {
+            // Date Filter Field
+            OutlinedTextField(
+                value = selectedDate?.format(dateFormatter) ?: "Any Date",
+                onValueChange = { /* This is fine for a read-only field */ },
+                readOnly = true, // This should generally be fine with Modifier.clickable
+                label = { Text("Filter by Date") },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(
+                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }, // Explicitly provide an interaction source
+                        indication = null, // Optionally remove ripple if it was interfering
+                        onClick = {
+                           // Log.d(DATE_PICKER_DEBUG_TAG, "Date TextField MODIFIER onClick fired. Current showDatePickerDialog: $showDatePickerDialog. Setting to true.")
+                            showDatePickerDialog = true // This is the crucial line
+                        }
+                    ),
+                trailingIcon = {
+                    if (selectedDate != null) {
+                        IconButton(onClick = {
+                           // Log.d(DATE_PICKER_DEBUG_TAG, "Clear Date Filter IconButton clicked.")
+                            selectedDate = null
+                            datePickerState.selectedDateMillis = null // Reset DatePicker's internal state
+                        }) {
+                            Icon(Icons.Filled.Clear, contentDescription = "Clear Date Filter")
+                        }
+                    } else {
+                        // Make the DateRange icon itself an IconButton to test clickability
+                        IconButton(onClick = {
+                           // Log.d(DATE_PICKER_DEBUG_TAG, "DateRange ICONBUTTON clicked. Setting showDatePickerDialog = true")
+                            showDatePickerDialog = true
+                        }) {
+                            Icon(Icons.Filled.DateRange, contentDescription = "Select Date")
+                        }
+                    }
+                })
+            Spacer(modifier = Modifier.height(16.dp)) // Added spacer
+
+
+            if (events.isEmpty() && (searchText.isNotEmpty() || selectedCategory != "Any" || selectedDate != null)) {
                 Text("No events found matching your criteria.", modifier = Modifier.padding(16.dp))
             } else if (events.isEmpty()) {
                 Text("No public events available at the moment.", modifier = Modifier.padding(16.dp))
@@ -140,9 +212,9 @@ fun AllEventsScreen(viewModel: AllEventsViewModel = viewModel(),
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
-                    contentPadding = PaddingValues(bottom = 16.dp) // Padding at the bottom of the list
+                    contentPadding = PaddingValues(bottom = 16.dp)
                 ) {
-                    items(events, key = { event -> event.id ?: event.hashCode() }) { event -> // Use a stable key
+                    items(events, key = { event -> event.id ?: event.hashCode() }) { event ->
                         AllEventCard(
                             event = event,
                             allEventsViewModel = viewModel
@@ -153,6 +225,7 @@ fun AllEventsScreen(viewModel: AllEventsViewModel = viewModel(),
         }
     }
 }
+
 
 @Composable
 fun AllEventCard(
@@ -167,15 +240,11 @@ fun AllEventCard(
 
     val currentUid = remember { FirebaseAuth.getInstance().currentUser?.uid }
 
-    // Manage listener lifecycle for this card's event using DisposableEffect
-    DisposableEffect(event.id, allEventsViewModel) { // Keys that trigger re-running the effect
-        val currentEventId = event.id // Capture event.id for use in onDispose
-
+    DisposableEffect(event.id, allEventsViewModel) {
+        val currentEventId = event.id
         if (currentEventId != null && currentEventId.isNotBlank()) {
             allEventsViewModel.listenToRsvpForEvent(currentEventId)
         }
-
-        // onDispose is the cleanup lambda provided by DisposableEffectScope
         onDispose {
             if (currentEventId != null && currentEventId.isNotBlank()) {
                 allEventsViewModel.stopListeningToRsvp(currentEventId)
@@ -183,7 +252,6 @@ fun AllEventCard(
         }
     }
 
-    // Derived state for user's RSVP status for this event
     val (thisUserComing, thisUserMaybeComing, thisUserNotComing) = remember(eventRsvpData, currentUid) {
         if (currentUid == null || eventRsvpData == null) {
             Triple(false, false, false)
@@ -203,13 +271,28 @@ fun AllEventCard(
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 8.dp),
+            .padding(horizontal = 8.dp), // Consider if this horizontal padding is needed if parent Column has padding
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(event.name, style = MaterialTheme.typography.titleLarge)
             Text("Category: ${event.category}", style = MaterialTheme.typography.bodyMedium)
-            Text("By: ${event.ownerName ?: "N/A"}", style = MaterialTheme. typography.bodySmall)
+            Text("By: ${event.ownerName ?: "N/A"}", style = MaterialTheme.typography.bodySmall)
+            // Optionally display event dates:
+            val eventDateFormatter = remember { DateTimeFormatter.ofPattern("EEE, dd MMM yyyy, HH:mm") }
+            event.startTime?.let {
+                Text(
+                    "Starts: ${it.toDate().toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime().format(eventDateFormatter)}",
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+            event.endTime?.let {
+                Text(
+                    "Ends: ${it.toDate().toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime().format(eventDateFormatter)}",
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+
 
             Spacer(Modifier.height(12.dp))
 
@@ -221,36 +304,36 @@ fun AllEventCard(
                     onClick = { allEventsViewModel.updateRsvp(event.id, RsvpStatus.COMING) },
                     modifier = Modifier.weight(1f),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = if (thisUserComing) Color(0xFF66BB6A) else Color.Green,
-                        contentColor = Color.White
+                        containerColor = if (thisUserComing) Color(0xFF66BB6A) else MaterialTheme.colorScheme.primaryContainer, // Use theme colors
+                        contentColor = if (thisUserComing) Color.White else MaterialTheme.colorScheme.onPrimaryContainer
                     ),
-                    enabled = !thisUserComing
+                    enabled = !thisUserComing // Or handle differently if already RSVP'd
                 ) {
-                    Text("Coming\n${comingCount}", fontSize = 11.sp, lineHeight = 12.sp)
+                    Text("Coming\n${comingCount}", fontSize = 11.sp, lineHeight = 12.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                 }
 
                 Button(
                     onClick = { allEventsViewModel.updateRsvp(event.id, RsvpStatus.MAYBE) },
                     modifier = Modifier.weight(1f),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = if (thisUserMaybeComing) Color(0xFFFFCA28) else Color.Yellow,
-                        contentColor = Color.Black
+                        containerColor = if (thisUserMaybeComing) Color(0xFFFFCA28) else MaterialTheme.colorScheme.secondaryContainer,
+                        contentColor = if (thisUserMaybeComing) Color.Black else MaterialTheme.colorScheme.onSecondaryContainer
                     ),
                     enabled = !thisUserMaybeComing
                 ) {
-                    Text("Maybe\n${maybeComingCount}", fontSize = 11.sp, lineHeight = 12.sp)
+                    Text("Maybe\n${maybeComingCount}", fontSize = 11.sp, lineHeight = 12.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                 }
 
                 Button(
                     onClick = { allEventsViewModel.updateRsvp(event.id, RsvpStatus.NOT_COMING) },
                     modifier = Modifier.weight(1f),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = if (thisUserNotComing) Color(0xFFEF5350) else Color.Red,
-                        contentColor = Color.White
+                        containerColor = if (thisUserNotComing) Color(0xFFEF5350) else MaterialTheme.colorScheme.errorContainer,
+                        contentColor = if (thisUserNotComing) Color.White else MaterialTheme.colorScheme.onErrorContainer
                     ),
                     enabled = !thisUserNotComing
                 ) {
-                    Text("Not Coming\n${notComingCount}", fontSize = 11.sp, lineHeight = 12.sp)
+                    Text("Not Coming\n${notComingCount}", fontSize = 11.sp, lineHeight = 12.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                 }
             }
         }

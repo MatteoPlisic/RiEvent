@@ -4,16 +4,22 @@ import androidx.lifecycle.ViewModel
 import com.google.firebase.firestore.FirebaseFirestore
 import Event // Assuming Event data class is in the root package or correctly imported
 import android.util.Log
-// import androidx.compose.animation.core.copy // Unused import
 import com.example.rievent.models.EventRSPV
 import com.example.rievent.models.RsvpUser
+// Import the extension function if it's in a different package
+
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.ListenerRegistration
-// import com.google.firebase.firestore.toObject // toObject is an extension function
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import com.google.firebase.Timestamp
+import java.time.LocalDate
+import java.time.ZoneId
 
+fun Timestamp.toLocalDate(): LocalDate {
+    return this.toDate().toInstant().atZone(ZoneId.systemDefault()).toLocalDate()
+}
 enum class RsvpStatus {
     COMING,
     MAYBE,
@@ -27,33 +33,30 @@ class AllEventsViewModel : ViewModel() {
     private val _events = MutableStateFlow<List<Event>>(emptyList())
     val events = _events.asStateFlow()
 
-    // Map to store real-time RSVP data for each event: eventId -> EventRSPV?
     private val _eventsRsvpsMap = MutableStateFlow<Map<String, EventRSPV?>>(emptyMap())
     val eventsRsvpsMap = _eventsRsvpsMap.asStateFlow()
 
-    private val allEvents = mutableListOf<Event>() // For local filtering
+    private val allEvents = mutableListOf<Event>()
     private val rsvpListeners = mutableMapOf<String, ListenerRegistration>()
     private var eventsListenerRegistration: ListenerRegistration? = null
 
-    // Store current search state to re-apply after allEvents list updates
     private var currentSearchQuery = ""
     private var currentSearchByUser = false
     private var currentSelectedCategory = "Any"
+    private var currentSelectedDate: LocalDate? = null // Added for date filter state
 
     init {
-        // You might want to load events immediately, or rely on the Composable's LaunchedEffect
-        // loadAllPublicEvents()
+        // loadAllPublicEvents() // Rely on Composable's LaunchedEffect
     }
 
     fun loadAllPublicEvents() {
-        eventsListenerRegistration?.remove() // Remove previous listener if any
+        eventsListenerRegistration?.remove()
         eventsListenerRegistration = db.collection("Event")
-            .whereEqualTo("public", true)
+            .whereEqualTo("public", true) // Assuming your field is "public" not "isPublic" in Firestore
+            // If your field in Firestore is "isPublic", use: .whereEqualTo("isPublic", true)
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
                     Log.w("AllEventsViewModel", "Listen failed.", error)
-                    // Optionally, update UI to show error state
-                    // _errorMessage.value = "Error loading events: ${error.localizedMessage}"
                     return@addSnapshotListener
                 }
 
@@ -65,7 +68,7 @@ class AllEventsViewModel : ViewModel() {
                 val freshEventsList = snapshot.documents.mapNotNull { doc ->
                     try {
                         val event = doc.toObject(Event::class.java)
-                        event?.copy(id = doc.id) // Make sure Event.id is non-nullable if possible
+                        event?.copy(id = doc.id)
                     } catch (e: Exception) {
                         Log.e("AllEventsViewModel", "Error deserializing event: ${doc.id}", e)
                         null
@@ -74,34 +77,44 @@ class AllEventsViewModel : ViewModel() {
 
                 allEvents.clear()
                 allEvents.addAll(freshEventsList)
-
-                // Re-apply current search/filter to the updated list
-                search(currentSearchQuery, currentSearchByUser, currentSelectedCategory)
+                search(currentSearchQuery, currentSearchByUser, currentSelectedCategory, currentSelectedDate) // Pass currentSelectedDate
             }
     }
 
-    fun search(query: String, searchByUser: Boolean, category: String) {
-        // Store current search parameters
+    fun search(query: String, searchByUser: Boolean, category: String, date: LocalDate?) { // Added date parameter
         currentSearchQuery = query
         currentSearchByUser = searchByUser
         currentSelectedCategory = category
+        currentSelectedDate = date // Store current selected date
 
         val filtered = allEvents.filter { event ->
             val matchesText = if (searchByUser) {
-                event.ownerName?.contains(query, ignoreCase = true) ?: false // Handle nullable ownerName
+                event.ownerName?.contains(query, ignoreCase = true) ?: false
             } else {
                 event.name.contains(query, ignoreCase = true)
             }
             val matchesCategory = category == "Any" ||
                     event.category.equals(category, ignoreCase = true)
-            matchesText && matchesCategory
+
+            val matchesDate = date == null || run {
+                val eventStartDate = event.startTime?.toLocalDate()
+                if (eventStartDate == null) return@run false // Event must have a start time to be matched by date
+
+                // If endTime is null, event is considered for that single start date
+                val eventEndDate = event.endTime?.toLocalDate() ?: eventStartDate
+
+                // Check if the selected 'date' is within the event's start and end dates (inclusive)
+                !date.isBefore(eventStartDate) && !date.isAfter(eventEndDate)
+            }
+
+            matchesText && matchesCategory && matchesDate // Added matchesDate
         }
         _events.value = filtered
     }
 
     fun listenToRsvpForEvent(eventId: String?) {
         if (eventId == null || eventId.isBlank() || rsvpListeners.containsKey(eventId)) {
-            return // Don't listen if eventId is null/blank or already listening
+            return
         }
 
         val listener = db.collection("event_rspv")
@@ -110,13 +123,12 @@ class AllEventsViewModel : ViewModel() {
                 if (error != null) {
                     Log.w("AllEventsViewModel", "RSVP listen failed for $eventId.", error)
                     _eventsRsvpsMap.value = _eventsRsvpsMap.value.toMutableMap().apply {
-                        put(eventId, null) // Indicate error or no data
+                        put(eventId, null)
                     }
                     return@addSnapshotListener
                 }
 
                 if (snapshot != null && !snapshot.isEmpty) {
-                    // Assuming only one RSVP doc per eventId
                     val doc = snapshot.documents[0]
                     try {
                         val eventRSPV = doc.toObject(EventRSPV::class.java)
@@ -130,9 +142,7 @@ class AllEventsViewModel : ViewModel() {
                         }
                     }
                 } else {
-                    // No RSVP document found for this eventId, or snapshot is empty
                     _eventsRsvpsMap.value = _eventsRsvpsMap.value.toMutableMap().apply {
-                        // Represent no RSVP doc as null or a default EventRSPV if preferred
                         put(eventId, null)
                     }
                 }
@@ -143,8 +153,6 @@ class AllEventsViewModel : ViewModel() {
     fun stopListeningToRsvp(eventId: String?) {
         if (eventId == null || eventId.isBlank()) return
         rsvpListeners.remove(eventId)?.remove()
-        // Optionally, you can remove the entry from the map or leave it as is (stale data)
-        // _eventsRsvpsMap.value = _eventsRsvpsMap.value.toMutableMap().apply { remove(eventId) }
     }
 
     fun updateRsvp(eventId: String?, newStatus: RsvpStatus) {
@@ -155,7 +163,6 @@ class AllEventsViewModel : ViewModel() {
         val currentUser = auth.currentUser
         if (currentUser == null) {
             Log.e("RSVP_UPDATE", "User is not logged in, cannot update RSVP.")
-            // Potentially emit an error/message to UI
             return
         }
         val userRsvpProfile = RsvpUser(currentUser.uid, currentUser.displayName ?: "Anonymous")
@@ -168,12 +175,10 @@ class AllEventsViewModel : ViewModel() {
                     val docRef = snapshot.documents[0].reference
                     val updates = mutableMapOf<String, Any>()
 
-                    // Remove user from all lists first to handle status changes
                     updates["coming_users"] = FieldValue.arrayRemove(userRsvpProfile)
                     updates["maybe_users"] = FieldValue.arrayRemove(userRsvpProfile)
                     updates["not_coming_users"] = FieldValue.arrayRemove(userRsvpProfile)
 
-                    // Add user to the new target list
                     val targetField = when (newStatus) {
                         RsvpStatus.COMING -> "coming_users"
                         RsvpStatus.MAYBE -> "maybe_users"
@@ -185,9 +190,8 @@ class AllEventsViewModel : ViewModel() {
                         .addOnSuccessListener { Log.d("RSVP_UPDATE", "RSVP updated successfully for $eventId to $newStatus") }
                         .addOnFailureListener { e -> Log.e("RSVP_UPDATE", "Failed to update RSVP for $eventId", e) }
                 } else {
-                    // No RSVP document exists, create a new one
                     val newRsvpDoc = EventRSPV(
-                        eventId = eventId, // Ensure EventRSPV has an eventId field
+                        eventId = eventId,
                         coming_users = if (newStatus == RsvpStatus.COMING) mutableListOf(userRsvpProfile) else mutableListOf(),
                         maybe_users = if (newStatus == RsvpStatus.MAYBE) mutableListOf(userRsvpProfile) else mutableListOf(),
                         not_coming_users = if (newStatus == RsvpStatus.NOT_COMING) mutableListOf(userRsvpProfile) else mutableListOf()

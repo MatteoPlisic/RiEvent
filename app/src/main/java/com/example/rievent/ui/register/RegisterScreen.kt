@@ -115,8 +115,7 @@ fun RegisterScreen(
             label = "Date of Birth",
             value = state.dateOfBirth,
             onDateSelected = onDateOfBirthChange,
-            onTextChange = onDateOfBirthChange,
-            error = state.dateOfBirthError
+            onTextChange = onDateOfBirthChange
         )
 
         state.dateOfBirthError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
