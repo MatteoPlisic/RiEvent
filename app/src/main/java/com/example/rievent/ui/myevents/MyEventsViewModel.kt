@@ -32,6 +32,7 @@ class MyEventsViewModel : ViewModel() {
 
     fun deleteEvent(eventId: String) {
         db.collection("Event").document(eventId).delete()
+        db.collection("event_rspv").whereEqualTo("eventId", eventId).get()
     }
 
     fun updateEvent(event: Event) {

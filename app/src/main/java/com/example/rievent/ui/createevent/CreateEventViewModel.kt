@@ -5,9 +5,12 @@ import androidx.lifecycle.viewModelScope
 import com.google.firebase.firestore.FirebaseFirestore
 import Event
 import com.example.rievent.models.EventRSPV
+import com.example.rievent.models.RsvpUser
+import com.google.firebase.firestore.DocumentReference
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 
 class CreateEventViewModel : ViewModel() {
 
@@ -29,18 +32,32 @@ class CreateEventViewModel : ViewModel() {
             _isSuccess.value = false
             _errorMessage.value = null
 
-            db.collection("Event")
-                .add(event)
-                .addOnSuccessListener {
-                    _isLoading.value = false
-                    _isSuccess.value = true
-                }
-                .addOnFailureListener { e ->
-                    _isLoading.value = false
-                    _errorMessage.value = e.localizedMessage
-                }
+            try {
+                val documentReference: DocumentReference = db.collection("Event").add(event).await()
 
-            db.collection("event_rspv").add(EventRSPV(event.id.toString(), EmptyList<String>(), 0, 0))
+                val eventId = documentReference.id
+                _isLoading.value = false
+                _isSuccess.value = true
+
+
+
+                db.collection("event_rspv").add(
+                    EventRSPV(
+                        eventId,
+                        listOf<RsvpUser>(),
+                        listOf<RsvpUser>(),
+                        listOf<RsvpUser>()
+                    )
+                )
+
+                _isLoading.value = false
+                _isSuccess.value = true
+            }catch (e: Exception) {
+
+                _isLoading.value = false
+                _isSuccess.value = false
+                _errorMessage.value = e.message
+            }
         }
     }
 

@@ -12,7 +12,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import Event
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.sp
+import com.example.rievent.models.EventRSPV
 import com.example.rievent.ui.utils.Drawer
+import com.google.firebase.auth.FirebaseAuth
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -140,9 +145,7 @@ fun AllEventsScreen(viewModel: AllEventsViewModel = viewModel(),
                 items(events) { event ->
                     AllEventCard(
                         event,
-                        onImComing   = { viewModel.rsvp(event.id, Rsvp.COMING) },
-                        onMaybe      = { viewModel.rsvp(event.id, Rsvp.MAYBE) },
-                        onNotComing  = { viewModel.rsvp(event.id, Rsvp.NOT_COMING) }
+                        viewModel
                     )
                 }
             }
@@ -150,48 +153,120 @@ fun AllEventsScreen(viewModel: AllEventsViewModel = viewModel(),
     }
 }
 
+
+
 @Composable
 fun AllEventCard(
     event: Event,
-    onImComing: () -> Unit,
-    onMaybe: () -> Unit,
-    onNotComing: () -> Unit
+    allEventsViewModel: AllEventsViewModel,
+    modifier: Modifier = Modifier
 ) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+    // 1) A local mutable state to hold the RSVP once it arrives
+    var eventRspvList by remember { mutableStateOf<List<EventRSPV>?>(null) }
+    var thisUserComing     by remember { mutableStateOf(false) }
+    var thisUserMaybeComing by remember { mutableStateOf(false) }
+    var thisUserNotComing   by remember { mutableStateOf(false) }
+    // 2) Fire off the one‐time callback when the card first composes (or when id changes)
+    LaunchedEffect(event.id) {
+        allEventsViewModel.rsvp(event.id) { rsvpResult ->
+            eventRspvList = rsvpResult
+        }
+    }
+
+    LaunchedEffect(eventRspvList) {
+        // only run when eventRspvList changes from null → data
+        val currentUid = FirebaseAuth.getInstance().currentUser?.uid
+        thisUserComing = eventRspvList
+            ?.firstOrNull { it.eventId == event.id }
+            ?.coming_users
+            ?.any { it.userId == currentUid }
+            ?: false
+        thisUserNotComing = eventRspvList
+            ?.firstOrNull { it.eventId == event.id }
+            ?.not_coming_users
+            ?.any { it.userId == currentUid }
+            ?: false
+
+        thisUserMaybeComing = eventRspvList
+            ?.firstOrNull { it.eventId == event.id }
+            ?.maybe_users
+            ?.any { it.userId == currentUid }
+            ?: false
+    }
+
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(8.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+    ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(event.name, style = MaterialTheme.typography.titleMedium)
-            Spacer(modifier = Modifier.height(4.dp))
-            Text("Category: ${event.category}")
-            Text("Address: ${event.address}")
-            Text("Start: ${event.startTime?.toDate()}")
-            Text("End: ${event.endTime?.toDate()}")
-            if (!event.isPublic) {
-                Text("Private", color = MaterialTheme.colorScheme.error)
+
+            Spacer(Modifier.height(8.dp))
+
+            var comingCount = 0
+            var notComingCount = 0
+            var maybeComingCount = 0
+
+
+            // show a loading indicator until the RSVP comes back
+            if (eventRspvList == null) {
+                CircularProgressIndicator(modifier = Modifier.size(24.dp))
+            } else {
+                comingCount= eventRspvList!!.firstOrNull{ it.eventId == event.id }?.coming_users!!.size
+                maybeComingCount = eventRspvList!!.firstOrNull{ it.eventId == event.id }?.maybe_users!!.size
+                notComingCount  = eventRspvList!!.firstOrNull{ it.eventId == event.id }?.not_coming_users!!.size
+
+
+
+
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(Modifier.height(12.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                // “I’m coming” button – green
                 Button(
-                    onClick = onImComing,
-                    modifier = Modifier.weight(1f)
+                    onClick = { thisUserComing = true; thisUserNotComing = false;thisUserMaybeComing = false; allEventsViewModel.updateRsvp(event.id, RsvpStatus.COMING) },
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if(!thisUserComing) Color.Green else Color.LightGray,
+                        contentColor = Color.White
+                    ),
+                    enabled = !thisUserComing
                 ) {
-                    Text("I'm coming")
+                    Text("I'm coming:\n ${comingCount}",fontSize = 12.sp)
                 }
-                OutlinedButton(
-                    onClick = onMaybe,
-                    modifier = Modifier.weight(1f)
+
+                // “Maybe” button – yellow
+                Button(
+                    onClick = { thisUserComing = false; thisUserNotComing = false;thisUserMaybeComing = true; allEventsViewModel.updateRsvp(event.id, RsvpStatus.MAYBE) },
+                    modifier = Modifier.weight(1f).align(Alignment.CenterVertically),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if(!thisUserMaybeComing) Color.Yellow else Color.LightGray,
+                        contentColor = Color.Black
+                    ),
+                    enabled = !thisUserMaybeComing
                 ) {
-                    Text("Maybe")
+                    Text("Maybe:\n ${maybeComingCount}",fontSize = 12.sp)
                 }
-                TextButton(
-                    onClick = onNotComing,
-                    modifier = Modifier.weight(1f)
+
+                // “Not coming” button – red
+                Button(
+                    onClick = { thisUserComing = false; thisUserNotComing = true;thisUserMaybeComing = false; allEventsViewModel.updateRsvp(event.id, RsvpStatus.NOT_COMING) },
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if(!thisUserNotComing) Color.Red else Color.LightGray ,
+                        contentColor = Color.White
+                    ),
+                    enabled = !thisUserNotComing
+
                 ) {
-                    Text("Not coming")
+                    Text("Not coming:\n  ${notComingCount}", fontSize = 12.sp)
                 }
             }
         }
