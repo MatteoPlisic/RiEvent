@@ -2,13 +2,13 @@ package com.example.rievent.ui.allevents
 
 import androidx.lifecycle.ViewModel
 import com.google.firebase.firestore.FirebaseFirestore
-import Event // Assuming Event data class is in the root package or correctly imported
+import Event
 import android.util.Log
 import androidx.lifecycle.viewModelScope
 import androidx.navigation.navOptions
 import com.example.rievent.models.EventRSPV
 import com.example.rievent.models.RsvpUser
-// Import the extension function if it's in a different package
+
 
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FieldValue
@@ -62,8 +62,8 @@ class AllEventsViewModel : ViewModel() {
     fun loadAllPublicEvents() {
         eventsListenerRegistration?.remove()
         eventsListenerRegistration = db.collection("Event")
-            .whereEqualTo("public", true) // Assuming your field is "public" not "isPublic" in Firestore
-            // If your field in Firestore is "isPublic", use: .whereEqualTo("isPublic", true)
+            .whereEqualTo("public", true)
+
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
                     Log.w("AllEventsViewModel", "Listen failed.", error)
@@ -108,16 +108,15 @@ class AllEventsViewModel : ViewModel() {
 
             val matchesDate = date == null || run {
                 val eventStartDate = event.startTime?.toLocalDate()
-                if (eventStartDate == null) return@run false // Event must have a start time to be matched by date
+                if (eventStartDate == null) return@run false
 
-                // If endTime is null, event is considered for that single start date
                 val eventEndDate = event.endTime?.toLocalDate() ?: eventStartDate
 
-                // Check if the selected 'date' is within the event's start and end dates (inclusive)
+
                 !date.isBefore(eventStartDate) && !date.isAfter(eventEndDate)
             }
 
-            matchesText && matchesCategory && matchesDate // Added matchesDate
+            matchesText && matchesCategory && matchesDate
         }
         _events.value = filtered
     }

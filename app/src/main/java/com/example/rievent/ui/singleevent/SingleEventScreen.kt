@@ -2,10 +2,8 @@ package com.example.rievent.ui.singleevent
 
 
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -20,20 +18,17 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.rememberAsyncImagePainter
 import com.google.firebase.auth.FirebaseAuth
 import java.text.SimpleDateFormat
 import java.util.Locale
 import java.util.TimeZone
-import Event // Adjust import
 
 import com.example.rievent.models.EventComment
 import com.example.rievent.models.EventRSPV
-import coil.compose.rememberAsyncImagePainter
 import coil.request.ImageRequest
-import coil.transform.CircleCropTransformation
+
 // Import data classes if they are in a different package
 // import com.example.rievent.models.EventRSPV
 // import com.example.rievent.models.EventRating
@@ -50,6 +45,7 @@ fun SingleEventScreen(
     val event by viewModel.event.collectAsState()
     val rsvp by viewModel.eventRsvp.collectAsState()
     val ratings by viewModel.ratings.collectAsState()
+    val ratingsSize by viewModel.ratingsSize.collectAsState()
     val averageRating by viewModel.averageRating.collectAsState()
     val userRating by viewModel.userRating.collectAsState()
     val comments by viewModel.comments.collectAsState()
@@ -146,13 +142,15 @@ fun SingleEventScreen(
 
                     // Rating Section
                     item {
+
                         RatingSection(
                             averageRating = averageRating,
-                            totalRatings = ratings.size,
+                            totalRatings = ratingsSize,
                             currentUserRatingValue = userRating?.rating,
                             onRatingSubmitted = { ratingValue ->
                                 viewModel.submitRating(currentEvent.id!!, ratingValue)
-                            }
+                            },
+                            enabledRatingButton = viewModel.enabledRatingButton.collectAsState().value
                         )
                     }
 
@@ -232,7 +230,8 @@ fun RatingSection(
     averageRating: Float,
     totalRatings: Int,
     currentUserRatingValue: Float?,
-    onRatingSubmitted: (Float) -> Unit
+    onRatingSubmitted: (Float) -> Unit,
+    enabledRatingButton: Boolean
 ) {
     var showRatingDialog by remember { mutableStateOf(false) }
     var selectedUserRating by remember { mutableStateOf(currentUserRatingValue ?: 3f) } // Default to 3 for dialog
@@ -250,7 +249,7 @@ fun RatingSection(
             Text(" ($totalRatings ratings)", style = MaterialTheme.typography.bodySmall)
         }
         Spacer(modifier = Modifier.height(8.dp))
-        Button(onClick = { showRatingDialog = true }) {
+        Button(onClick = { showRatingDialog = enabledRatingButton }, enabled = enabledRatingButton) {
             Text(if (currentUserRatingValue != null) "Update Your Rating" else "Rate this Event")
         }
     }

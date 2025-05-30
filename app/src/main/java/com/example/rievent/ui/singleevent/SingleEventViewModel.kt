@@ -15,18 +15,19 @@ import com.google.firebase.firestore.ktx.toObjects
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
-import Event // Adjust import
+import Event
 import android.util.Log
+
 import com.example.rievent.models.EventComment
 import com.example.rievent.models.EventRating
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-// Assuming EventRating and EventComment data classes are defined in your models package
+
 // import com.example.rievent.models.EventRating
 // import com.example.rievent.models.EventComment
 
-// Placeholder for data classes if not defined elsewhere yet
+
 
 
 
@@ -50,7 +51,10 @@ class SingleEventViewModel : ViewModel() {
     private val _averageRating = MutableStateFlow(0.0f)
     val averageRating: StateFlow<Float> = _averageRating.asStateFlow()
 
-    private val _userRating = MutableStateFlow<EventRating?>(null) // Current user's rating for this event
+    private val _ratingsSize = MutableStateFlow(0)
+    val ratingsSize: StateFlow<Int> = _ratingsSize.asStateFlow()
+
+    private val _userRating = MutableStateFlow<EventRating?>(null)
     val userRating: StateFlow<EventRating?> = _userRating.asStateFlow()
 
     private val _comments = MutableStateFlow<List<EventComment>>(emptyList())
@@ -62,12 +66,17 @@ class SingleEventViewModel : ViewModel() {
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
 
+    private var _enabledRatingButton = MutableStateFlow(true)
+    val enabledRatingButton: StateFlow<Boolean> = _enabledRatingButton.asStateFlow()
+
     private var eventListener: ListenerRegistration? = null
     private var rsvpListener: ListenerRegistration? = null
     private var ratingsListener: ListenerRegistration? = null
     private var commentsListener: ListenerRegistration? = null
 
     fun loadEventData(eventId: String) {
+
+
         if (eventId.isBlank()) {
             _error.value = "Event ID is missing."
             return
@@ -113,7 +122,6 @@ class SingleEventViewModel : ViewModel() {
         // Load Ratings
         ratingsListener?.remove()
         ratingsListener = db.collection("event_ratings").whereEqualTo("eventId", eventId)
-            .orderBy("createdAt", Query.Direction.DESCENDING)
             .addSnapshotListener { snapshot, e ->
                 if (e != null) {
                     Log.w("SingleEventVM", "Ratings listen failed.", e)
@@ -124,10 +132,17 @@ class SingleEventViewModel : ViewModel() {
                         doc.toObject<EventRating>()?.copy(id = doc.id) // Manually set the ID
                     }
                     _ratings.value = currentRatings
+
+                    calculateAverageRating(currentRatings)
+                    _ratingsSize.value = currentRatings.size
+                    if(_event.value?.endTime != null)
+                            _enabledRatingButton.value = Timestamp.now() > _event.value!!.endTime!!
+                    Log.d("enabled rating", _enabledRatingButton.value.toString())
+                    _userRating.value = currentRatings.find { it.userId == currentUserId && it.eventId == eventId }
                 }
             }
 
-        // Load Comments
+
         commentsListener?.remove()
         commentsListener = db.collection("event_comments").whereEqualTo("eventId", eventId)
             .orderBy("createdAt", Query.Direction.DESCENDING) // Show newest comments first
