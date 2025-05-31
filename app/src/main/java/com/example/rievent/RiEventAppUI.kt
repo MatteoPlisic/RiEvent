@@ -12,6 +12,7 @@ import com.example.rievent.ui.login.LoginScreen
 import com.example.rievent.ui.login.LoginViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.rievent.ui.allevents.AllEventsScreen
+import com.example.rievent.ui.allevents.AllEventsViewModel
 import com.example.rievent.ui.home.HomeScreen
 import com.example.rievent.ui.welcome.WelcomeScreen
 import com.example.rievent.ui.register.RegisterScreen
@@ -23,6 +24,8 @@ import com.example.rievent.ui.myevents.MyEventsScreen
 import com.example.rievent.ui.myevents.MyEventsViewModel
 import com.example.rievent.ui.singleevent.SingleEventScreen
 import com.example.rievent.ui.updateevent.UpdateEventScreen
+import com.example.rievent.ui.userprofile.UserProfileScreen
+import com.example.rievent.ui.userprofile.UserProfileViewModel
 import com.google.firebase.auth.FirebaseAuth
 
 @Composable
@@ -139,11 +142,32 @@ fun RiEventAppUI() {
             if (eventId != null) {
                 SingleEventScreen(
                     eventId = eventId,
-                    onBack = { navController.popBackStack() }
+                    onBack = { navController.popBackStack() },
+                    onNavigateToUserProfile = { userId -> navController.navigate("profile/$userId") }
                 )
             } else {
                 // Handle error: eventId not found
                 Text("Error: Event ID missing.")
+            }
+        }
+        composable("profile/{userId}") { backStackEntry -> 
+            val userId = backStackEntry.arguments?.getString("userId")
+            if(userId != null) {
+                val viewModel: UserProfileViewModel = viewModel()
+                val allEventsViewModel: AllEventsViewModel = viewModel()
+                UserProfileScreen(
+                    userId = userId,
+                    onBack = { navController.popBackStack() },
+                    onNavigateToSingleEvent = { eventId ->
+                        navController.navigate("singleEvent/$eventId")
+                    },
+                    viewModel = viewModel,
+                    allEventsViewModel = allEventsViewModel,
+                    isCurrentUserProfile = true
+                )
+            }
+            else{
+                Text("Error: User ID missing.")
             }
         }
     }

@@ -3,7 +3,7 @@ package com.example.rievent.ui.register
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import androidx.navigation.navOptions
+import com.example.rievent.models.User
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
@@ -77,13 +77,12 @@ class RegisterViewModel : ViewModel() {
                     val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return@addOnCompleteListener
 
 
-                    val userData = mapOf(
-                        "firstName" to state.firstName,
-                        "lastName" to state.lastName,
-                        "email" to state.email,
-                        "dateOfBirth" to state.dateOfBirth,
-                        "phone" to state.phoneNumber,
-                        "gender" to if (state.gender) "male" else "female"
+                    val userData = User(
+                        uid = uid,
+                        displayName = state.firstName + " " + state.lastName,
+                        email = state.email,
+                        bio = "",
+                        photoUrl = ""
                     )
 
                     // Save to Firestore

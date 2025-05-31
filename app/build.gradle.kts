@@ -56,6 +56,8 @@ dependencies {
     implementation(libs.volley)
     implementation(libs.androidx.espresso.core)
     implementation(libs.play.services.base)
+    implementation(libs.firebase.storage.ktx)
+    implementation(libs.androidx.room.runtime.android)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
@@ -79,6 +81,6 @@ dependencies {
     implementation("com.google.android.libraries.identity.googleid:googleid:1.1.0")
     implementation("androidx.compose.material:material-icons-extended")
 
-
+    implementation("io.coil-kt:coil-compose:2.5.0")
 
 }

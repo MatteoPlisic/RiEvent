@@ -108,7 +108,7 @@ fun WelcomeScreen(
                     Text(text = "Register")
                 }
                 Button(
-                    onClick = { viewModel.requestGoogleIdToken() },
+                    onClick = { viewModel.signInWithGoogle() },
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(text = "Login with Google")

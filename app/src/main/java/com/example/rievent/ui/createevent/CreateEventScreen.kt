@@ -1,32 +1,44 @@
 package com.example.rievent.ui.createevent
 
-import Event // Assuming Event data class is in the root package or correctly imported
-// Remove android.icu.text.SimpleDateFormat if you are using java.text.SimpleDateFormat
-// import android.icu.text.SimpleDateFormat
+import Event
+import android.net.Uri // For Uri
+import androidx.activity.compose.rememberLauncherForActivityResult // For image picker
+import androidx.activity.result.contract.ActivityResultContracts // For image picker
+import androidx.compose.foundation.Image // For image preview
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable // To make image preview clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons // For icons
+import androidx.compose.material.icons.filled.AddPhotoAlternate // Example icon
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext // If needed for Coil
 import androidx.compose.ui.unit.dp
-import com.example.rievent.ui.utils.DatePickerField // Ensure this path is correct
-import com.example.rievent.ui.utils.Drawer // Ensure this path is correct
-import com.example.rievent.ui.utils.TimePickerField // Ensure this path is correct
+import coil.compose.rememberAsyncImagePainter // For image loading
+import com.example.rievent.ui.utils.DatePickerField
+import com.example.rievent.ui.utils.Drawer
+import com.example.rievent.ui.utils.TimePickerField
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.GeoPoint
-import java.text.SimpleDateFormat // Import java.text.SimpleDateFormat
-import java.util.* // For Locale and Calendar
-import android.util.Log // For debugging
+import java.text.SimpleDateFormat
+import java.util.*
+import android.util.Log
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CreateEventScreen(
-    viewModel: CreateEventViewModel, // Assuming you have this ViewModel
+    viewModel: CreateEventViewModel,
     onCreated: () -> Unit,
     currentUserId: String,
+    // ... other navigation params
     onLogout: () -> Unit,
     onNavigateToProfile: () -> Unit,
     onNavigateToEvents: () -> Unit,
@@ -38,24 +50,33 @@ fun CreateEventScreen(
     val errorMessage by viewModel.errorMessage.collectAsState()
 
     var name by remember { mutableStateOf("") }
+    // ... other state variables ...
     var description by remember { mutableStateOf("") }
     var category by remember { mutableStateOf("") }
-    var startDate by remember { mutableStateOf("") } // Will be "yyyy-MM-dd"
-    var startTime by remember { mutableStateOf("") } // Will be "HH:mm"
-    var endDate by remember { mutableStateOf("") }   // Will be "yyyy-MM-dd"
-    var endTime by remember { mutableStateOf("") }   // Will be "HH:mm"
+    var startDate by remember { mutableStateOf("") }
+    var startTime by remember { mutableStateOf("") }
+    var endDate by remember { mutableStateOf("") }
+    var endTime by remember { mutableStateOf("") }
     var address by remember { mutableStateOf("") }
     var latitude by remember { mutableStateOf("") }
     var longitude by remember { mutableStateOf("") }
     var isPublic by remember { mutableStateOf(true) }
     var expanded by remember { mutableStateOf(false) }
-    // var ownerName by remember { mutableStateOf("") } // ownerName will be fetched from Auth
+
+    // State for selected image URI
+    var imageUri by remember { mutableStateOf<Uri?>(null) }
+
+    // ActivityResultLauncher for picking an image
+    val imagePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        imageUri = uri // Update the state with the selected image URI
+    }
 
     val categoryOptions = listOf("Sports", "Academic", "Business", "Culture", "Concert", "Quizz", "Party")
 
     LaunchedEffect(isSuccess) {
         if (isSuccess) {
-            // Optionally clear fields here or let onCreated() handle navigation which recomposes
             name = ""
             description = ""
             category = ""
@@ -67,14 +88,15 @@ fun CreateEventScreen(
             latitude = ""
             longitude = ""
             isPublic = true
-            // ...
-            viewModel.resetState() // Important
+            imageUri = null // Clear selected image
+            viewModel.resetState()
             onCreated()
         }
     }
 
     Drawer(
-        title = "Create Event", // Changed title for clarity
+        title = "Create Event",
+        // ... navigation callbacks ...
         onLogout = onLogout,
         onNavigateToProfile = onNavigateToProfile,
         onNavigateToEvents = onNavigateToEvents,
@@ -84,14 +106,15 @@ fun CreateEventScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(top = 80.dp, bottom = 16.dp, start = 16.dp, end = 16.dp), // Added horizontal padding
-            contentAlignment = Alignment.TopCenter // Align content to top for scrolling
+                .padding(top = 80.dp, bottom = 16.dp, start = 16.dp, end = 16.dp),
+            contentAlignment = Alignment.TopCenter
         ) {
             LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(12.dp), // Reduced spacing a bit
+                verticalArrangement = Arrangement.spacedBy(12.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.fillMaxWidth() // Use full width within the padded Box
+                modifier = Modifier.fillMaxWidth()
             ) {
+                // ... (TextFields for name, description, category dropdown) ...
                 item { TextField(value = name, onValueChange = { name = it }, label = { Text("Event Name") }, modifier = Modifier.fillMaxWidth()) }
                 item {
                     TextField(
@@ -136,12 +159,60 @@ fun CreateEventScreen(
                     }
                 }
 
+
+                // Image Picker and Preview
+                item {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text("Event Image (Optional)", style = MaterialTheme.typography.labelLarge)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth(0.8f) // Adjust width as needed
+                                .aspectRatio(16f / 9f) // Common aspect ratio for event images
+                                .clip(RoundedCornerShape(8.dp))
+                                .border(
+                                    1.dp,
+                                    MaterialTheme.colorScheme.outline,
+                                    RoundedCornerShape(8.dp)
+                                )
+                                .clickable { imagePickerLauncher.launch("image/*") }, // Launch image picker
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (imageUri != null) {
+                                Image(
+                                    painter = rememberAsyncImagePainter(model = imageUri),
+                                    contentDescription = "Selected event image",
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentScale = ContentScale.Crop
+                                )
+                            } else {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Icon(
+                                        imageVector = Icons.Default.AddPhotoAlternate,
+                                        contentDescription = "Add Image Placeholder",
+                                        modifier = Modifier.size(48.dp),
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
+                                    Text("Tap to select image", style = MaterialTheme.typography.bodySmall)
+                                }
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+                }
+
+
+                // ... (DatePickerField, TimePickerField, other TextFields) ...
                 item {
                     DatePickerField(
                         label = "Start Date",
                         value = startDate,
                         onDateSelected = { selectedDateString -> startDate = selectedDateString },
-                        onTextChange = { text -> startDate = text } // Update state if manual edit is allowed
+                        onTextChange = { text -> startDate = text }
                     )
                 }
 
@@ -150,7 +221,7 @@ fun CreateEventScreen(
                         label = "Start Time",
                         value = startTime,
                         onTimeSelected = { selectedTimeString -> startTime = selectedTimeString },
-                        onTextChange = { text -> startTime = text } // Update state if manual edit is allowed
+                        onTextChange = { text -> startTime = text }
                     )
                 }
 
@@ -184,25 +255,16 @@ fun CreateEventScreen(
                     }
                 }
 
+
                 item {
                     Button(
                         onClick = {
-                            // --- DEBUG LOGS ---
-                            Log.d("CREATE_EVENT", "Attempting to create event:")
-                            Log.d("CREATE_EVENT", "Raw startDate: $startDate")
-                            Log.d("CREATE_EVENT", "Raw startTime: $startTime")
-                            Log.d("CREATE_EVENT", "Raw endDate: $endDate")
-                            Log.d("CREATE_EVENT", "Raw endTime: $endTime")
-                            // --- END DEBUG LOGS ---
-
-                            // Use java.text.SimpleDateFormat
-                            // This formatter expects strings like "yyyy-MM-dd HH:mm"
-                            val formatter = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US) // Use Locale.US for consistency
+                            // ... (timestamp parsing logic - unchanged) ...
+                            val formatter = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US)
 
                             var startTimestamp: Timestamp? = null
                             if (startDate.isNotBlank() && startTime.isNotBlank()) {
                                 val combinedStartString = "$startDate $startTime"
-                                Log.d("CREATE_EVENT", "Combined start string to parse: $combinedStartString")
                                 startTimestamp = runCatching {
                                     val parsedDate = formatter.parse(combinedStartString)
                                     if (parsedDate != null) Timestamp(parsedDate) else null
@@ -212,22 +274,17 @@ fun CreateEventScreen(
                             var endTimestamp: Timestamp? = null
                             if (endDate.isNotBlank() && endTime.isNotBlank()) {
                                 val combinedEndString = "$endDate $endTime"
-                                Log.d("CREATE_EVENT", "Combined end string to parse: $combinedEndString")
                                 endTimestamp = runCatching {
                                     val parsedDate = formatter.parse(combinedEndString)
                                     if (parsedDate != null) Timestamp(parsedDate) else null
                                 }.onFailure { Log.e("CREATE_EVENT", "Failed to parse end timestamp", it) }.getOrNull()
                             }
 
-                            Log.d("CREATE_EVENT", "Parsed startTimestamp: $startTimestamp")
-                            Log.d("CREATE_EVENT", "Parsed endTimestamp: $endTimestamp")
-
 
                             val geoPoint = if (latitude.isNotBlank() && longitude.isNotBlank()) {
                                 runCatching { GeoPoint(latitude.toDouble(), longitude.toDouble()) }.getOrNull()
                             } else null
 
-                            // Fetch current user's display name for ownerName
                             val eventOwnerName = FirebaseAuth.getInstance().currentUser?.displayName ?: "Anonymous"
 
                             val event = Event(
@@ -240,10 +297,12 @@ fun CreateEventScreen(
                                 address = address.trim(),
                                 location = geoPoint,
                                 isPublic = isPublic,
-                                ownerName = eventOwnerName, // Use fetched or default name
-                                createdAt = Timestamp.now() // Good practice to set createdAt
+                                ownerName = eventOwnerName,
+                                createdAt = Timestamp.now(),
+                                imageUrl = null // Will be set by ViewModel if imageUri is present
                             )
-                            viewModel.createEvent(event)
+                            // Call the new ViewModel function
+                            viewModel.createEventWithImage(event, imageUri)
                         },
                         enabled = !isLoading,
                         modifier = Modifier.fillMaxWidth()
@@ -257,7 +316,7 @@ fun CreateEventScreen(
                         Text("Error: $errorMessage", color = MaterialTheme.colorScheme.error)
                     }
                 }
-                item { Spacer(modifier = Modifier.height(50.dp)) } // Add some space at the bottom for scrolling
+                item { Spacer(modifier = Modifier.height(50.dp)) }
             }
         }
     }

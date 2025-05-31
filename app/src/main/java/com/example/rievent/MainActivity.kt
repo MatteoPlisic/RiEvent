@@ -18,10 +18,6 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         /*val result = FirebaseApp.initializeApp(this)
         Log.d("FirebaseTest", "Firebase initialized? ${result != null}")*/
-
-
-
-
         enableEdgeToEdge()
         setContent {
             val context = LocalContext.current

@@ -1,6 +1,7 @@
 package com.example.rievent.ui.singleevent
 
 
+import android.util.Log
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -39,7 +40,8 @@ import coil.request.ImageRequest
 fun SingleEventScreen(
     eventId: String,
     viewModel: SingleEventViewModel = viewModel(),
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onNavigateToUserProfile: (String) -> Unit,
     // Add other navigation callbacks if needed
 ) {
     val event by viewModel.event.collectAsState()
@@ -115,7 +117,20 @@ fun SingleEventScreen(
                     // Event Title and Basic Info
                     item {
                         Text(currentEvent.name, style = MaterialTheme.typography.headlineSmall)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("By: ${currentEvent.ownerName}", style = MaterialTheme.typography.titleSmall)
+                        Spacer(modifier = Modifier.width(8.dp)) // Add some space between text and button
+                        Button(
+                            onClick = {
+                                onNavigateToUserProfile(currentEvent.ownerId) // Example navigation
+                            }, modifier = Modifier.height(30.dp) ){
+
+                            Icon(
+                                imageVector = Icons.Filled.Person, // Or Icons.Filled.Info, etc.
+                                contentDescription = "View Owner Profile",
+                                modifier = Modifier.size(ButtonDefaults.IconSize) // Default icon size for buttons
+                            )
+                        }}
                         currentEvent.startTime?.let {
                             val formatter = remember { SimpleDateFormat("EEE, dd MMM yyyy, hh:mm a", Locale.getDefault()).apply { timeZone = TimeZone.getDefault()} }
                             Text("Starts: ${formatter.format(it.toDate())}", style = MaterialTheme.typography.bodyMedium)
