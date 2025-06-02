@@ -22,6 +22,8 @@ data class RegisterUiState(
     val termsAndConditionsError: String? = null,
     val privacyPolicyError: String? = null,
     val success: Boolean = false,
+    val isLoading: Boolean = false, // Add this
+
     //val availableCities: List<City> = emptyList()
 
 )

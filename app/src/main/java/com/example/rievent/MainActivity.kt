@@ -1,54 +1,152 @@
-package com.example.rievent
+package com.example.rievent // Your package
 
-
+import android.Manifest
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.ui.platform.LocalContext
-
-import com.example.rievent.ui.welcome.WelcomeViewModel
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.messaging.FirebaseMessaging
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 class MainActivity : ComponentActivity() {
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        /*val result = FirebaseApp.initializeApp(this)
-        Log.d("FirebaseTest", "Firebase initialized? ${result != null}")*/
-        enableEdgeToEdge()
-        setContent {
-            val context = LocalContext.current
-            val coroutineScope = rememberCoroutineScope()
-            val welcomeViewModel = WelcomeViewModel(context)
-            RiEventAppUI()
+
+    private val _deepLinkNavigateToEventId = MutableStateFlow<String?>(null)
+    val deepLinkNavigateToEventId: StateFlow<String?> = _deepLinkNavigateToEventId.asStateFlow()
+
+    private val requestPermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted: Boolean ->
+            if (isGranted) {
+                Log.d("Permission", "POST_NOTIFICATIONS permission granted.")
+                getAndSendCurrentToken()
+            } else {
+                Log.d("Permission", "POST_NOTIFICATIONS permission denied by user.")
+            }
         }
 
-            /*LoginScreen(
-                state = state,
-                onEmailChange = viewModel::onEmailChange,
-                onPasswordChange = viewModel::onPasswordChange,
-                onLoginClick = viewModel::onLoginClick,
-                onForgotPasswordClick = viewModel::onForgotPasswordClick
-            )*/
-           /* RegisterScreen(
-                state = state,
-                onEmailChange = viewModel::onEmailChange,
-                onPasswordChange = viewModel::onPasswordChange,
-                onConfirmPasswordChange = viewModel::onConfirmPasswordChange,
-                onFirstNameChange = viewModel::onFirstNameChange,
-                onLastNameChange = viewModel::onLastNameChange,
-                onPhoneNumberChange = viewModel::onPhoneNumberChange,
-                onDateOfBirthChange = viewModel::onDateOfBirthChange,
-                onGenderChange = viewModel::onGenderChange,
-                onTermsAndConditionsChange = viewModel::onTermsAndConditionsChange,
-                onPrivacyPolicyChange = viewModel::onPrivacyPolicyChange,
-                onRegisterClick = viewModel::onRegisterClick,
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
+        Log.d("MainActivityLifecycle", "onCreate called")
 
+        askNotificationPermission() // Ask for permission early
 
-            )*/
+        setContent {
+            RiEventAppUI(
+                deepLinkEventIdFlow = deepLinkNavigateToEventId,
+                onDeepLinkHandled = {
+                    Log.d("DeepLink", "Deep link handled, resetting _deepLinkNavigateToEventId.")
+                    _deepLinkNavigateToEventId.value = null
+                }
+            )
+        }
 
+        // Handle the intent that started this activity instance
+        // This covers the case where the app is launched fresh from a notification.
+        Log.d("MainActivityLifecycle", "Calling handleIntentExtras from onCreate")
+        handleIntentExtras(intent)
     }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        Log.d("MainActivityLifecycle", "onNewIntent called")
+
+        setIntent(intent)
+
+        handleIntentExtras(intent)
+    }
+
+    private fun askNotificationPermission() {
+        Log.d("Permission", "askNotificationPermission called")
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            when {
+                ContextCompat.checkSelfPermission(
+                    this,
+                    Manifest.permission.POST_NOTIFICATIONS
+                ) == PackageManager.PERMISSION_GRANTED -> {
+                    Log.d("Permission", "POST_NOTIFICATIONS permission already granted.")
+                    getAndSendCurrentToken()
+                }
+                shouldShowRequestPermissionRationale(Manifest.permission.POST_NOTIFICATIONS) -> {
+                    Log.d("Permission", "Showing rationale for POST_NOTIFICATIONS.")
+                    // TODO: Show a proper rationale dialog before launching permission request
+                    requestPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                }
+                else -> {
+                    Log.d("Permission", "Requesting POST_NOTIFICATIONS permission directly.")
+                    requestPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                }
+            }
+        } else {
+            Log.d("Permission", "Pre-Tiramisu, notification permission is implicit.")
+            getAndSendCurrentToken()
+        }
+    }
+
+    private fun getAndSendCurrentToken() {
+        Log.d("FCMToken", "getAndSendCurrentToken called")
+        FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
+            if (!task.isSuccessful) {
+                Log.w("FCMToken", "Fetching FCM registration token failed", task.exception)
+                return@addOnCompleteListener
+            }
+            val token = task.result
+            Log.d("FCMToken", "Current FCM token from MainActivity: $token")
+            sendTokenToServer(token)
+        }
+    }
+
+    private fun sendTokenToServer(token: String?) {
+        if (token == null) {
+            Log.w("FCMToken", "Token is null, not sending to server.")
+            return
+        }
+        val userId = FirebaseAuth.getInstance().currentUser?.uid
+        if (userId != null) {
+            Log.d("FCMToken", "Sending token $token for user $userId to server.")
+            val tokenData = mapOf("token" to token, "timestamp" to com.google.firebase.Timestamp.now())
+            FirebaseFirestore.getInstance().collection("users").document(userId)
+                .collection("fcmTokens").document(token) // Using token as doc ID
+                .set(tokenData)
+                .addOnSuccessListener { Log.d("FCMToken", "Token successfully sent to server from MainActivity for user $userId") }
+                .addOnFailureListener { e -> Log.e("FCMToken", "Error sending token to server from MainActivity for user $userId", e) }
+        } else {
+            Log.w("FCMToken", "User not logged in, token not sent to server.")
+        }
+    }
+
+    private fun handleIntentExtras(intent: Intent?) {
+        Log.d("DeepLink", "handleIntentExtras called with intent: $intent")
+        if (intent == null || intent.extras == null) {
+            Log.d("DeepLink", "Intent or extras are null, no deep link data to process.")
+            return
+        }
+
+        val extras = intent.extras
+        val eventId = extras?.getString("eventId")
+        val notificationType = extras?.getString("notificationType")
+
+        Log.d("DeepLink", "Extracted from extras: eventId=$eventId, notificationType=$notificationType")
+
+
+        if (eventId != null && notificationType == "NEW_EVENT_BY_FOLLOWED_USER") {
+            Log.i("DeepLink", "Processing deep link for NEW_EVENT_BY_FOLLOWED_USER, eventId: $eventId")
+            _deepLinkNavigateToEventId.value = eventId
+
+
+        } else {
+            Log.d("DeepLink", "Intent did not contain expected deep link data (eventId or correct notificationType).")
+        }
+    }
+
+
 }

@@ -1,34 +1,47 @@
 package com.example.rievent.ui.userprofile
 
-import Event // Your Event data class
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Edit // For an edit button
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.rememberAsyncImagePainter
 import coil.request.ImageRequest
-import com.example.rievent.models.User // Your User data class
-import com.example.rievent.ui.allevents.AllEventCard // Re-use your event card if suitable
-import com.example.rievent.ui.allevents.AllEventsViewModel // If AllEventCard needs it
-import com.google.firebase.auth.FirebaseAuth
-import java.util.Locale
+import com.example.rievent.models.User
+import com.example.rievent.ui.allevents.AllEventCard
+import com.example.rievent.ui.allevents.AllEventsViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -84,7 +97,10 @@ fun UserProfileScreen(
                 if (isLoadingProfile && userProfile == null) {
                     CircularProgressIndicator()
                 } else if (userProfile != null) {
-                    UserProfileHeader(user = userProfile!!)
+                    UserProfileHeader(
+                        user = userProfile!!, viewModel,
+                        isCurrentUserProfile = isCurrentUserProfile
+                    )
                 } else if (error != null && userProfile == null) {
                     Text("Error: $error", color = MaterialTheme.colorScheme.error)
                 } else {
@@ -109,10 +125,11 @@ fun UserProfileScreen(
                         // You can reuse your AllEventCard or create a simpler one
                         AllEventCard(
                             event = event,
-                            allEventsViewModel = allEventsViewModel // Pass the necessary ViewModel
+                            allEventsViewModel = allEventsViewModel ,
+                            onCardClick = { eventId -> onNavigateToSingleEvent(eventId)},// Pass the necessary ViewModel
                         )
                         // Or a simpler card:
-                        // EventItemCard(event = event, onNavigateToSingleEvent = onNavigateToSingleEvent)
+                         //EventItemCard(event = event, onNavigateToSingleEvent = onNavigateToSingleEvent)
                     }
                 } else if (!isLoadingEvents && createdEvents.isEmpty()){
                     item { Text("This user hasn't created any events yet.") }
@@ -130,7 +147,13 @@ fun UserProfileScreen(
 }
 
 @Composable
-fun UserProfileHeader(user: User) {
+fun UserProfileHeader(
+    user: User,
+    viewModel: UserProfileViewModel,
+    isCurrentUserProfile: Boolean // This is important!
+) {
+    val isFollowing by viewModel.isFollowing.collectAsState()
+    val isFollowActionLoading by viewModel.isFollowActionLoading.collectAsState()
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier.fillMaxWidth()
@@ -180,30 +203,19 @@ fun UserProfileHeader(user: User) {
                 modifier = Modifier.padding(horizontal = 16.dp)
             )
         }
-        // Add more fields as needed (e.g., join date)
-        // user.createdAt?.let {
-        //    val formatter = remember { SimpleDateFormat("MMM yyyy", Locale.getDefault()) }
-        //    Text("Joined: ${formatter.format(it.toDate())}", style = MaterialTheme.typography.bodySmall)
-        // }
-    }
-}
-
-// Optional: A simpler event card for the profile screen
-@Composable
-fun EventItemCard(event: Event, onNavigateToSingleEvent: (String) -> Unit) {
-    Card(
-        onClick = { event.id?.let { onNavigateToSingleEvent(it) } },
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(Modifier.padding(16.dp)) {
-            Text(event.name, style = MaterialTheme.typography.titleMedium)
-            event.startTime?.let {
-                // Simple date formatting
-                Text(
-                    "Date: ${java.text.SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(it.toDate())}",
-                    style = MaterialTheme.typography.bodySmall
-                )
+        if (!isCurrentUserProfile) {
+            Spacer(modifier = Modifier.height(16.dp))
+            Button(
+                onClick = { viewModel.toggleFollowUser(user.uid) },
+                enabled = !isFollowActionLoading // Disable button during the action
+            ) {
+                if (isFollowActionLoading) {
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                } else {
+                    Text(if (isFollowing) "Unfollow" else "Follow")
+                }
             }
         }
+
     }
 }

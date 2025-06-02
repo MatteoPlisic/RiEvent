@@ -33,7 +33,7 @@ class LoginViewModel : ViewModel() {
 
         auth.signInWithEmailAndPassword(email, password).addOnCompleteListener { task ->
             if (task.isSuccessful) {
-                // ✅ Login success
+
                 Log.d("FirebaseLogin", "Logged in as: ${auth.currentUser?.email}")
                 _uiState.update { it.copy(success = true) }
 
@@ -41,9 +41,9 @@ class LoginViewModel : ViewModel() {
                     _navigateToHome.emit(Unit)
                 }
             } else {
-                // ❌ Login failed
+
                 Log.e("FirebaseLogin", "Login failed", task.exception)
-                Log.e("FirebaseLogin", email + " " + password,task.exception)
+                Log.e("FirebaseLogin", "$email $password",task.exception)
                 _uiState.update { it.copy(loginError = "Invalid credentials.") }
             }
 
@@ -51,7 +51,7 @@ class LoginViewModel : ViewModel() {
     }
 
     fun onForgotPasswordClick() {
-        // Handle forgot password
+
         println("Forgot password clicked")
     }
 

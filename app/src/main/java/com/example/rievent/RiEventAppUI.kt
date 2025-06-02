@@ -1,41 +1,63 @@
 package com.example.rievent
 
+import android.util.Log
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import com.example.rievent.ui.login.LoginScreen
-import com.example.rievent.ui.login.LoginViewModel
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.rievent.ui.allevents.AllEventsScreen
 import com.example.rievent.ui.allevents.AllEventsViewModel
-import com.example.rievent.ui.home.HomeScreen
-import com.example.rievent.ui.welcome.WelcomeScreen
-import com.example.rievent.ui.register.RegisterScreen
-import com.example.rievent.ui.register.RegisterViewModel
-import com.example.rievent.ui.welcome.WelcomeViewModel
 import com.example.rievent.ui.createevent.CreateEventScreen
 import com.example.rievent.ui.createevent.CreateEventViewModel
+import com.example.rievent.ui.home.HomeScreen
+import com.example.rievent.ui.login.LoginScreen
+import com.example.rievent.ui.login.LoginViewModel
 import com.example.rievent.ui.myevents.MyEventsScreen
 import com.example.rievent.ui.myevents.MyEventsViewModel
+import com.example.rievent.ui.register.RegisterScreen
+import com.example.rievent.ui.register.RegisterViewModel
 import com.example.rievent.ui.singleevent.SingleEventScreen
 import com.example.rievent.ui.updateevent.UpdateEventScreen
 import com.example.rievent.ui.userprofile.UserProfileScreen
 import com.example.rievent.ui.userprofile.UserProfileViewModel
+import com.example.rievent.ui.welcome.WelcomeScreen
+import com.example.rievent.ui.welcome.WelcomeViewModel
 import com.google.firebase.auth.FirebaseAuth
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.collectLatest
 
 @Composable
-fun RiEventAppUI() {
+fun RiEventAppUI(
+    deepLinkEventIdFlow: StateFlow<String?>,
+    onDeepLinkHandled: () -> Unit
+) {
     val navController = rememberNavController()
     val startDestination = if (FirebaseAuth.getInstance().currentUser != null) {
         "home"
     } else {
         "welcome"
     }
+
+    val eventIdToNavigate by deepLinkEventIdFlow.collectAsState()
+
+    LaunchedEffect(eventIdToNavigate) {
+        Log.d("RiEventAppUI", "Deep link navigation NOT triggered for eventId: $eventIdToNavigate")
+        if (eventIdToNavigate != null) {
+            Log.d("RiEventAppUI", "Deep link navigation triggered for eventId: $eventIdToNavigate")
+            navController.navigate("singleEvent/$eventIdToNavigate") {
+                // Optional: Add NavOptions like popUpTo to clear back stack if needed
+                // launchSingleTop = true // If navigating to same screen type
+            }
+            onDeepLinkHandled() // Signal that the deep link has been processed
+        }
+    }
+
     NavHost(navController = navController, startDestination = startDestination) {
         composable("login") {
             val loginViewModel: LoginViewModel = viewModel()
@@ -53,6 +75,18 @@ fun RiEventAppUI() {
         composable("register") {
             val registerViewModel: RegisterViewModel = viewModel()
             val uiState by registerViewModel.uiState.collectAsState()
+
+            LaunchedEffect(key1 = registerViewModel, key2 = navController) {
+                registerViewModel.navigateToHome.collectLatest {
+                    Log.d("NavGraph_Register", "navigateToHome from Register collected. Navigating to home.")
+                    navController.navigate("home") {
+                        popUpTo("register") { inclusive = true } // Clear register screen
+                        popUpTo("welcome") { inclusive = true } // Also clear welcome if it was before register
+                        launchSingleTop = true
+                    }
+                }
+            }
+
             RegisterScreen(
                 state = uiState,
                 onEmailChange = registerViewModel::onEmailChange,
@@ -65,7 +99,8 @@ fun RiEventAppUI() {
                 onGenderChange = registerViewModel::onGenderChange,
                 onTermsAndConditionsChange = registerViewModel::onTermsAndConditionsChange,
                 onPrivacyPolicyChange = registerViewModel::onPrivacyPolicyChange,
-                onRegisterClick = registerViewModel::onRegisterClick
+                onRegisterClick = registerViewModel::onRegisterClick,
+                navigateToHome = { navController.navigate("home") }
             )
         }
         composable("welcome"){
@@ -83,7 +118,7 @@ fun RiEventAppUI() {
         composable("home") {
             HomeScreen(
                 onLogout = { FirebaseAuth.getInstance().signOut(); navController.navigate("welcome") },
-                onNavigateToProfile = { /* navController.navigate("profile") if you have one */ },
+                onNavigateToProfile = { navController.navigate("myprofile") },
                 onNavigateToEvents = {  navController.navigate("events")},
                 onNavigateToCreateEvent = { navController.navigate("createEvent") },
                 onNavigateToMyEvents = {navController.navigate("myEvents")}
@@ -98,7 +133,7 @@ fun RiEventAppUI() {
                 currentUserId = currentUserId,
                 onCreated = { navController.navigate("home") },
                 onLogout = { FirebaseAuth.getInstance().signOut(); navController.navigate("welcome") },
-                onNavigateToProfile = { /* navController.navigate("profile") if you have one */ },
+                onNavigateToProfile = { navController.navigate("myprofile") },
                 onNavigateToEvents = {  navController.navigate("events")},
                 onNavigateToCreateEvent = { navController.navigate("createEvent") },
                 onNavigateToMyEvents = {navController.navigate("myEvents")}
@@ -112,7 +147,7 @@ fun RiEventAppUI() {
                 viewModel = viewModel,
                 navController = navController,
                 onLogout = { FirebaseAuth.getInstance().signOut(); navController.navigate("welcome") },
-                onNavigateToProfile = { /* navController.navigate("profile") if you have one */ },
+                onNavigateToProfile = { navController.navigate("myprofile")  },
                 onNavigateToEvents = {  navController.navigate("events")},
                 onNavigateToCreateEvent = { navController.navigate("createEvent") },
                 onNavigateToMyEvents = {navController.navigate("myEvents")}
@@ -128,7 +163,7 @@ fun RiEventAppUI() {
         composable("events") {
             AllEventsScreen(
                 onLogout = { FirebaseAuth.getInstance().signOut(); navController.navigate("welcome") },
-                onNavigateToProfile = { /* navController.navigate("profile") if you have one */ },
+                onNavigateToProfile = {  navController.navigate("myprofile")  },
                 onNavigateToEvents = {  navController.navigate("events")},
                 onNavigateToCreateEvent = { navController.navigate("createEvent") },
                 onNavigateToMyEvents = {navController.navigate("myEvents")},
@@ -163,7 +198,27 @@ fun RiEventAppUI() {
                     },
                     viewModel = viewModel,
                     allEventsViewModel = allEventsViewModel,
-                    isCurrentUserProfile = true
+                    isCurrentUserProfile = userId == FirebaseAuth.getInstance().currentUser?.uid
+                )
+            }
+            else{
+                Text("Error: User ID missing.")
+            }
+        }
+        composable("myprofile") { backStackEntry ->
+            val userId = FirebaseAuth.getInstance().currentUser?.uid
+            if(userId != null) {
+                val viewModel: UserProfileViewModel = viewModel()
+                val allEventsViewModel: AllEventsViewModel = viewModel()
+                UserProfileScreen(
+                    userId = userId,
+                    onBack = { navController.popBackStack() },
+                    onNavigateToSingleEvent = { eventId ->
+                        navController.navigate("singleEvent/$eventId")
+                    },
+                    viewModel = viewModel,
+                    allEventsViewModel = allEventsViewModel,
+                    isCurrentUserProfile = userId == FirebaseAuth.getInstance().currentUser?.uid
                 )
             }
             else{

@@ -64,56 +64,106 @@ class RegisterViewModel : ViewModel() {
     fun onRegisterClick() {
         val state = uiState.value
 
-
-        if (state.email.isBlank() || state.password.length < 6) {
-            _uiState.update { it.copy(emailError = "Enter valid email and password (6+ characters)") }
-            return
+        // Basic client-side validation (you should add more comprehensive validation)
+        var isValid = true
+        if (state.firstName.isBlank()) {
+            _uiState.update { it.copy(firstNameError = "First name cannot be empty") }
+            isValid = false
         }
+        if (state.lastName.isBlank()) {
+            _uiState.update { it.copy(lastNameError = "Last name cannot be empty") }
+            isValid = false
+        }
+        if (state.email.isBlank() || !android.util.Patterns.EMAIL_ADDRESS.matcher(state.email)
+                .matches()
+        ) {
+            _uiState.update { it.copy(emailError = "Enter a valid email address") }
+            isValid = false
+        }
+        if (state.password.length < 6) {
+            _uiState.update { it.copy(passwordError = "Password must be at least 6 characters") }
+            isValid = false
+        }
+        if (state.password != state.confirmPassword) {
+            _uiState.update { it.copy(confirmPasswordError = "Passwords do not match") }
+            isValid = false
+        }
+        if (!state.termsAndConditions) {
+            _uiState.update { it.copy(termsAndConditionsError = "You must accept the terms and conditions") }
+            isValid = false
+        }
+        if (!state.privacyPolicy) {
+            _uiState.update { it.copy(privacyPolicyError = "You must accept the privacy policy") }
+            isValid = false
+        }
+        // Add other validations (phone number, DOB format if not using a proper picker that validates)
+
+        if (!isValid) {
+            return // Stop if validation fails
+        }
+
+        _uiState.update {
+            it.copy(
+                isLoading = true,
+                emailError = null,
+                passwordError = null,
+                confirmPasswordError = null,
+                firstNameError = null,
+                lastNameError = null,
+                termsAndConditionsError = null,
+                privacyPolicyError = null
+            )
+        } // Clear previous general errors
 
         FirebaseAuth.getInstance()
             .createUserWithEmailAndPassword(state.email, state.password)
             .addOnCompleteListener { task ->
                 if (task.isSuccessful) {
-                    val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return@addOnCompleteListener
-
+                    val firebaseUser = FirebaseAuth.getInstance().currentUser
+                    if (firebaseUser == null) {
+                        _uiState.update {
+                            it.copy(
+                                isLoading = false,
+                                emailError = "User created but UID is missing."
+                            )
+                        }
+                        return@addOnCompleteListener
+                    }
+                    val uid = firebaseUser.uid
 
                     val userData = User(
                         uid = uid,
-                        displayName = state.firstName + " " + state.lastName,
+                        displayName = "${state.firstName} ${state.lastName}".trim(),
                         email = state.email,
-                        bio = "",
-                        photoUrl = ""
+                        // You'll need to map other fields from RegisterUiState to your User model
+                        // e.g., phoneNumber = state.phoneNumber, gender = if(state.gender) "Male" else "Female", etc.
+                        // photoUrl = "", // Default or allow upload later
+                        // bio = "",      // Default
                     )
 
-                    // Save to Firestore
                     Firebase.firestore.collection("users").document(uid).set(userData)
                         .addOnSuccessListener {
-                            _uiState.update { it.copy(success = true) }
+                            Log.d("RegisterVM", "User profile saved to Firestore.")
+
+                            _uiState.update { it.copy(isLoading = false, success = true) }
+                            viewModelScope.launch {
+                                _navigateToHome.tryEmit(Unit) // Use tryEmit for SharedFlow with replay=1
+                            }
                         }
                         .addOnFailureListener { e ->
-                            _uiState.update { it.copy(emailError = "User created but failed to save profile: ${e.message}") }
-                        }
-
-
-                    FirebaseAuth.getInstance().signInWithEmailAndPassword(state.email, state.password).addOnCompleteListener { task ->
-                        if (task.isSuccessful) {
-                            // ✅ Login success
-                            Log.d(
-                                "FirebaseLogin",
-                                "Logged in as: ${FirebaseAuth.getInstance().currentUser?.email}"
-                            )
-                            _uiState.update { it.copy(success = true) }
-
-                            viewModelScope.launch {
-                                _navigateToHome.emit(Unit)
+                            Log.e("RegisterVM", "Failed to save user profile: ${e.message}", e)
+                            _uiState.update {
+                                it.copy(
+                                    isLoading = false,
+                                    emailError = "Account created but profile save failed: ${e.message}"
+                                )
                             }
-                        } else {
-                            // ❌ Login failed
                         }
-                    }
                 } else {
-                    val error = task.exception?.localizedMessage ?: "Registration failed"
-                    _uiState.update { it.copy(emailError = error) }
+                    val error =
+                        task.exception?.localizedMessage ?: "Registration failed. Please try again."
+                    Log.e("RegisterVM", "Registration failed: $error", task.exception)
+                    _uiState.update { it.copy(isLoading = false, emailError = error) }
                 }
             }
     }

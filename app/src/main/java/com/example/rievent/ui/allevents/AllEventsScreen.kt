@@ -253,8 +253,9 @@ fun AllEventsScreen(
                     items(events, key = { event -> event.id ?: event.hashCode() }) { event ->
                         AllEventCard(
                             event = event,
-                            allEventsViewModel = viewModel
-                            // onClick will be handled by the Card's modifier now
+                            allEventsViewModel = viewModel,
+                            onCardClick = { eventId -> viewModel.onEventClicked(eventId) }
+
                         )
                     }
                 }
@@ -267,7 +268,8 @@ fun AllEventsScreen(
 fun AllEventCard(
     event: Event,
     allEventsViewModel: AllEventsViewModel,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onCardClick: (eventId: String) -> Unit
 ) {
     val rsvpMap by allEventsViewModel.eventsRsvpsMap.collectAsState()
     val eventRsvpData: EventRSPV? = remember(event.id, rsvpMap) {
@@ -307,9 +309,10 @@ fun AllEventCard(
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 8.dp),
+            .padding(horizontal = 8.dp)
+            .clickable { event.id?.let { onCardClick(it) } },
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-        onClick = { allEventsViewModel.onEventClicked(event.id) }
+
     ) {
         // Use a Box to layer the small image on top of the content
         Box(modifier = Modifier.fillMaxWidth()) {

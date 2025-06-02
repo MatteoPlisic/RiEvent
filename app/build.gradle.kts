@@ -80,7 +80,7 @@ dependencies {
     implementation("io.coil-kt:coil-compose:2.6.0")
     implementation("com.google.android.libraries.identity.googleid:googleid:1.1.0")
     implementation("androidx.compose.material:material-icons-extended")
-
+    implementation("com.google.firebase:firebase-messaging-ktx")
     implementation("io.coil-kt:coil-compose:2.5.0")
 
 }

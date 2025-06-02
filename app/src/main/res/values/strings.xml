@@ -11,4 +11,7 @@
     <string name="passowrd">Password</string>
     <string name="email">Email address</string>
     <string name="home_text">Welcome to RiEvent</string>
+    <string name="default_notification_channel_id">rievent_default_channel</string>
+    <string name="default_notification_channel_name">General Notifications</string>
+    <string name="default_notification_channel_description">Default channel for app notifications</string>
 </resources>

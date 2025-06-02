@@ -1,21 +1,45 @@
 package com.example.rievent.ui.myevents
 
-import androidx.compose.foundation.layout.*
+import Event
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.google.firebase.auth.FirebaseAuth
-import Event
-import androidx.compose.foundation.lazy.items
 import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.compose.material.icons.filled.Edit
 import androidx.navigation.NavController
+import com.example.rievent.ui.allevents.AllEventCard
+import com.example.rievent.ui.allevents.AllEventsViewModel
 import com.example.rievent.ui.utils.Drawer
+import com.google.firebase.auth.FirebaseAuth
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -28,7 +52,7 @@ fun MyEventsScreen(viewModel: MyEventsViewModel = viewModel(),
                    onNavigateToMyEvents: () -> Unit) {
     val currentUserId = FirebaseAuth.getInstance().currentUser?.uid ?: return
     val events by viewModel.events.collectAsState()
-
+    val allEventsViewModel: AllEventsViewModel = viewModel()
     var showDialog by remember { mutableStateOf(false) }
     var eventToDelete by remember { mutableStateOf<Event?>(null) }
 
@@ -60,7 +84,7 @@ fun MyEventsScreen(viewModel: MyEventsViewModel = viewModel(),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             items(events) { event ->
-                EventCard(
+                MyEventItemCard(
                     event = event,
                     onDeleteClick = {
                         eventToDelete = event
@@ -68,7 +92,11 @@ fun MyEventsScreen(viewModel: MyEventsViewModel = viewModel(),
                     },
                     onEditClick = {
                         navController.navigate("updateEvent/${event.id}")
-                    }
+                    },
+                    onEventClick = { eventId ->
+                        navController.navigate("singleEvent/$eventId")
+                    },
+                    allEventsViewModel = allEventsViewModel
                 )
             }
         }
@@ -104,46 +132,44 @@ fun MyEventsScreen(viewModel: MyEventsViewModel = viewModel(),
     }
     }
 }
-
 @Composable
-fun EventCard(
+fun MyEventItemCard(
     event: Event,
+    allEventsViewModel: AllEventsViewModel, // Pass this if AllEventCard requires it
+    onEventClick: (eventId: String) -> Unit, // For when the main card body is clicked
+    onEditClick: () -> Unit,
     onDeleteClick: () -> Unit,
-    onEditClick: () -> Unit
+    modifier: Modifier = Modifier // Allow passing a modifier to the outer Card
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column {
+            // AllEventCard will handle the main display and its own click
+            AllEventCard(
+                event = event,
+                allEventsViewModel = allEventsViewModel,
+                onCardClick = { eventId -> onEventClick(eventId) } // Pass through the main card click
+            )
+
+            // Row for Edit and Delete actions specific to MyEvents
             Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 4.dp), // Adjust padding as needed
+                horizontalArrangement = Arrangement.Center, // Align buttons to the right
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = event.name,
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.weight(1f)
-                )
-
-                IconButton(onClick = onEditClick) {
-                    Icon(Icons.Default.Edit, contentDescription = "Edit")
+                Button(onClick = onEditClick) {
+                    Text("Edit")
+                    Icon(Icons.Default.Edit, contentDescription = "Edit Event")
                 }
-
-                IconButton(onClick = onDeleteClick) {
-                    Icon(Icons.Default.Delete, contentDescription = "Delete")
+                Spacer(modifier = Modifier.width(4.dp)) // Small spacer between buttons
+                Button(onClick = onDeleteClick) {
+                    Text("Delete")
+                    Icon(Icons.Default.Delete, contentDescription = "Delete Event")
                 }
-            }
-
-
-            Spacer(modifier = Modifier.height(8.dp))
-            Text("Category: ${event.category}")
-            Text("Address: ${event.address}")
-            Text("Start: ${event.startTime?.toDate()}")
-            Text("End: ${event.endTime?.toDate()}")
-            if (!event.isPublic) {
-                Text("Private", color = MaterialTheme.colorScheme.error)
             }
         }
     }
