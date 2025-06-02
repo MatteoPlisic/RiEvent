@@ -1,5 +1,6 @@
 package com.example.rievent.ui.register
 
+import android.net.Uri
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -7,12 +8,14 @@ import com.example.rievent.models.User
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
+import com.google.firebase.storage.ktx.storage
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 
 class RegisterViewModel : ViewModel() {
     private val _uiState = MutableStateFlow(RegisterUiState())
@@ -20,6 +23,10 @@ class RegisterViewModel : ViewModel() {
 
     private val _navigateToHome = MutableSharedFlow<Unit>(replay = 1)
     val navigateToHome: SharedFlow<Unit> = _navigateToHome
+
+    private val auth = FirebaseAuth.getInstance()
+    private val firestore = Firebase.firestore
+    private val storage = Firebase.storage
 
     fun onEmailChange(value: String) {
         _uiState.update { it.copy(email = value, emailError = null) }
@@ -61,23 +68,52 @@ class RegisterViewModel : ViewModel() {
         _uiState.update { it.copy(privacyPolicy = value, privacyPolicyError = null) }
     }
 
-    fun onRegisterClick() {
-        val state = uiState.value
+    fun onProfileImageChange(uri: Uri?) {
+        _uiState.update { it.copy(profileImageUri = uri, profileImageError = null) }
+    }
 
-        // Basic client-side validation (you should add more comprehensive validation)
+    fun onRegisterClick() {
+        val state = _uiState.value
+        if (!validateInputs(state)) return
+
+        _uiState.update { it.copy(isLoading = true) }
+
+        auth.createUserWithEmailAndPassword(state.email, state.password)
+            .addOnCompleteListener { task ->
+                if (task.isSuccessful) {
+                    val firebaseUser = auth.currentUser
+                    if (firebaseUser == null) {
+                        _uiState.update { it.copy(isLoading = false, emailError = "User authentication failed unexpectedly.") }
+                        return@addOnCompleteListener
+                    }
+                    val uid = firebaseUser.uid
+                    processUserProfile(uid, state)
+                } else {
+                    val error = task.exception?.localizedMessage ?: "Registration failed. Please try again."
+                    Log.e("RegisterVM", "Registration failed: $error", task.exception)
+                    _uiState.update { it.copy(isLoading = false, emailError = error) }
+                }
+            }
+    }
+
+    private fun validateInputs(state: RegisterUiState): Boolean {
         var isValid = true
+        _uiState.update { it.copy(
+            emailError = null, passwordError = null, confirmPasswordError = null,
+            firstNameError = null, lastNameError = null, termsAndConditionsError = null,
+            privacyPolicyError = null, profileImageError = null
+        )}
+
         if (state.firstName.isBlank()) {
-            _uiState.update { it.copy(firstNameError = "First name cannot be empty") }
+            _uiState.update { it.copy(firstNameError = "First name is required") }
             isValid = false
         }
         if (state.lastName.isBlank()) {
-            _uiState.update { it.copy(lastNameError = "Last name cannot be empty") }
+            _uiState.update { it.copy(lastNameError = "Last name is required") }
             isValid = false
         }
-        if (state.email.isBlank() || !android.util.Patterns.EMAIL_ADDRESS.matcher(state.email)
-                .matches()
-        ) {
-            _uiState.update { it.copy(emailError = "Enter a valid email address") }
+        if (state.email.isBlank() || !android.util.Patterns.EMAIL_ADDRESS.matcher(state.email).matches()) {
+            _uiState.update { it.copy(emailError = "Enter a valid email") }
             isValid = false
         }
         if (state.password.length < 6) {
@@ -96,77 +132,42 @@ class RegisterViewModel : ViewModel() {
             _uiState.update { it.copy(privacyPolicyError = "You must accept the privacy policy") }
             isValid = false
         }
-        // Add other validations (phone number, DOB format if not using a proper picker that validates)
-
-        if (!isValid) {
-            return // Stop if validation fails
-        }
-
-        _uiState.update {
-            it.copy(
-                isLoading = true,
-                emailError = null,
-                passwordError = null,
-                confirmPasswordError = null,
-                firstNameError = null,
-                lastNameError = null,
-                termsAndConditionsError = null,
-                privacyPolicyError = null
-            )
-        } // Clear previous general errors
-
-        FirebaseAuth.getInstance()
-            .createUserWithEmailAndPassword(state.email, state.password)
-            .addOnCompleteListener { task ->
-                if (task.isSuccessful) {
-                    val firebaseUser = FirebaseAuth.getInstance().currentUser
-                    if (firebaseUser == null) {
-                        _uiState.update {
-                            it.copy(
-                                isLoading = false,
-                                emailError = "User created but UID is missing."
-                            )
-                        }
-                        return@addOnCompleteListener
-                    }
-                    val uid = firebaseUser.uid
-
-                    val userData = User(
-                        uid = uid,
-                        displayName = "${state.firstName} ${state.lastName}".trim(),
-                        email = state.email,
-                        // You'll need to map other fields from RegisterUiState to your User model
-                        // e.g., phoneNumber = state.phoneNumber, gender = if(state.gender) "Male" else "Female", etc.
-                        // photoUrl = "", // Default or allow upload later
-                        // bio = "",      // Default
-                    )
-
-                    Firebase.firestore.collection("users").document(uid).set(userData)
-                        .addOnSuccessListener {
-                            Log.d("RegisterVM", "User profile saved to Firestore.")
-
-                            _uiState.update { it.copy(isLoading = false, success = true) }
-                            viewModelScope.launch {
-                                _navigateToHome.tryEmit(Unit) // Use tryEmit for SharedFlow with replay=1
-                            }
-                        }
-                        .addOnFailureListener { e ->
-                            Log.e("RegisterVM", "Failed to save user profile: ${e.message}", e)
-                            _uiState.update {
-                                it.copy(
-                                    isLoading = false,
-                                    emailError = "Account created but profile save failed: ${e.message}"
-                                )
-                            }
-                        }
-                } else {
-                    val error =
-                        task.exception?.localizedMessage ?: "Registration failed. Please try again."
-                    Log.e("RegisterVM", "Registration failed: $error", task.exception)
-                    _uiState.update { it.copy(isLoading = false, emailError = error) }
-                }
-            }
+        return isValid
     }
 
+    private fun processUserProfile(uid: String, state: RegisterUiState) {
+        viewModelScope.launch {
+            var photoUrlString: String? = null
+            if (state.profileImageUri != null) {
+                try {
+                    val imageRef = storage.reference.child("profile_images/$uid/${state.profileImageUri.lastPathSegment}")
+                    val uploadTask = imageRef.putFile(state.profileImageUri).await()
+                    photoUrlString = uploadTask.storage.downloadUrl.await().toString()
+                    Log.d("RegisterVM", "Image uploaded: $photoUrlString")
+                } catch (e: Exception) {
+                    Log.e("RegisterVM", "Image upload failed", e)
+                    _uiState.update { it.copy(profileImageError = "Profile image upload failed: ${e.localizedMessage}") }
 
+                }
+            }
+
+            val displayName = "${state.firstName} ${state.lastName}".trim()
+            val userData = User(
+                uid = uid,
+                displayName = if (displayName.isNotBlank()) displayName else "New User",
+                email = state.email,
+                photoUrl = photoUrlString ?: ""
+            )
+
+            try {
+                firestore.collection("users").document(uid).set(userData).await()
+                Log.d("RegisterVM", "User profile saved to Firestore.")
+                _uiState.update { it.copy(isLoading = false, success = true) }
+                _navigateToHome.tryEmit(Unit)
+            } catch (e: Exception) {
+                Log.e("RegisterVM", "Failed to save user profile: ${e.message}", e)
+                _uiState.update { it.copy(isLoading = false, emailError = "Account created, but profile save failed: ${e.message}") }
+            }
+        }
+    }
 }

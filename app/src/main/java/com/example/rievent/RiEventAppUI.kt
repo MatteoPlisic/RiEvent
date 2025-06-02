@@ -88,19 +88,8 @@ fun RiEventAppUI(
             }
 
             RegisterScreen(
-                state = uiState,
-                onEmailChange = registerViewModel::onEmailChange,
-                onPasswordChange = registerViewModel::onPasswordChange,
-                onConfirmPasswordChange = registerViewModel::onConfirmPasswordChange,
-                onFirstNameChange = registerViewModel::onFirstNameChange,
-                onLastNameChange = registerViewModel::onLastNameChange,
-                onPhoneNumberChange = registerViewModel::onPhoneNumberChange,
-                onDateOfBirthChange = registerViewModel::onDateOfBirthChange,
-                onGenderChange = registerViewModel::onGenderChange,
-                onTermsAndConditionsChange = registerViewModel::onTermsAndConditionsChange,
-                onPrivacyPolicyChange = registerViewModel::onPrivacyPolicyChange,
-                onRegisterClick = registerViewModel::onRegisterClick,
-                navigateToHome = { navController.navigate("home") }
+                navController = navController,
+                viewModel = registerViewModel
             )
         }
         composable("welcome"){
