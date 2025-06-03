@@ -63,74 +63,71 @@ fun MyEventsScreen(viewModel: MyEventsViewModel = viewModel(),
     }
     Drawer(
         title = "Home",
-        onLogout = onLogout,
-        onNavigateToProfile = onNavigateToProfile,
-        onNavigateToEvents = onNavigateToEvents,
-        onNavigateToCreateEvent = onNavigateToCreateEvent,
-        onNavigateToMyEvents = onNavigateToMyEvents,
+        navController = navController
     ){ innerPadding ->
 
 
-    Scaffold(
-        topBar = {
-            TopAppBar(title = { Text("My Events") })
-        }
-    ) { innerPadding ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            items(events) { event ->
-                MyEventItemCard(
-                    event = event,
-                    onDeleteClick = {
-                        eventToDelete = event
-                        showDialog = true
-                    },
-                    onEditClick = {
-                        navController.navigate("updateEvent/${event.id}")
-                    },
-                    onEventClick = { eventId ->
-                        navController.navigate("singleEvent/$eventId")
-                    },
-                    allEventsViewModel = allEventsViewModel
-                )
+            Scaffold(
+                topBar = {
+                    TopAppBar(title = { Text("My Events") })
+                }
+            ) { innerPadding ->
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding)
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    items(events) { event ->
+                        MyEventItemCard(
+                            event = event,
+                            onDeleteClick = {
+                                eventToDelete = event
+                                showDialog = true
+                            },
+                            onEditClick = {
+                                navController.navigate("updateEvent/${event.id}")
+                            },
+                            onEventClick = { eventId ->
+                                navController.navigate("singleEvent/$eventId")
+                            },
+                            allEventsViewModel = allEventsViewModel
+                        )
+                    }
+                }
+
+                // ✅ Place it here, *inside* Scaffold but *outside* LazyColumn
+                if (showDialog && eventToDelete != null) {
+                    AlertDialog(
+                        onDismissRequest = {
+                            showDialog = false
+                            eventToDelete = null
+                        },
+                        confirmButton = {
+                            TextButton(onClick = {
+                                eventToDelete?.id?.let { viewModel.deleteEvent(it) }
+                                showDialog = false
+                                eventToDelete = null
+                            }) {
+                                Text("Delete")
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = {
+                                showDialog = false
+                                eventToDelete = null
+                            }) {
+                                Text("Cancel")
+                            }
+                        },
+                        title = { Text("Delete Event") },
+                        text = { Text("Are you sure you want to delete \"${eventToDelete?.name}\"?") }
+                    )
+                }
             }
         }
 
-        // ✅ Place it here, *inside* Scaffold but *outside* LazyColumn
-        if (showDialog && eventToDelete != null) {
-            AlertDialog(
-                onDismissRequest = {
-                    showDialog = false
-                    eventToDelete = null
-                },
-                confirmButton = {
-                    TextButton(onClick = {
-                        eventToDelete?.id?.let { viewModel.deleteEvent(it) }
-                        showDialog = false
-                        eventToDelete = null
-                    }) {
-                        Text("Delete")
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = {
-                        showDialog = false
-                        eventToDelete = null
-                    }) {
-                        Text("Cancel")
-                    }
-                },
-                title = { Text("Delete Event") },
-                text = { Text("Are you sure you want to delete \"${eventToDelete?.name}\"?") }
-            )
-        }
-    }
-    }
 }
 @Composable
 fun MyEventItemCard(

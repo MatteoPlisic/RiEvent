@@ -154,7 +154,7 @@ class RegisterViewModel : ViewModel() {
             val displayName = "${state.firstName} ${state.lastName}".trim()
             val userData = User(
                 uid = uid,
-                displayName = if (displayName.isNotBlank()) displayName else "New User",
+                displayName = if (displayName.isNotBlank()) displayName else "Guest user",
                 email = state.email,
                 photoUrl = photoUrlString ?: ""
             )

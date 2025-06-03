@@ -4,10 +4,22 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.ModalDrawerSheet
+import androidx.compose.material3.ModalNavigationDrawer
+import androidx.compose.material3.NavigationDrawerItem
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.rememberDrawerState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.navigation.NavController
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.launch
 
@@ -15,13 +27,9 @@ import kotlinx.coroutines.launch
 @Composable
 fun Drawer(
     title: String,
-    onNavigateToProfile: () -> Unit = {},
-    onNavigateToEvents: () -> Unit = {},
-    onNavigateToCreateEvent: () -> Unit = {},
-    onNavigateToMyEvents: () -> Unit = {},
-    onLogout: () -> Unit = {},
-    content: @Composable (PaddingValues) -> Unit
-) {
+    navController: NavController,
+    content: @Composable (PaddingValues) -> Unit,
+    ) {
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
 
@@ -35,26 +43,33 @@ fun Drawer(
                 })
                 NavigationDrawerItem(label = { Text("Events") }, selected = false, onClick = {
                     scope.launch { drawerState.close() }
-                    onNavigateToEvents()
+
+                        navController.navigate("events")
+
                 })
                 NavigationDrawerItem(label = { Text("Profile") }, selected = false, onClick = {
                     scope.launch { drawerState.close() }
-                    onNavigateToProfile()
+                    navController.navigate("profile/${FirebaseAuth.getInstance().currentUser?.uid}")
                 })
                 NavigationDrawerItem(label = { Text("Create event") }, selected = false, onClick = {
                     scope.launch { drawerState.close() }
-                    onNavigateToCreateEvent()
+                    navController.navigate("createEvent")
                 })
                 NavigationDrawerItem(label = { Text("My events") }, selected = false, onClick = {
                     scope.launch { drawerState.close() }
-                    onNavigateToMyEvents()
+                    navController.navigate("myEvents")
+                })
+                NavigationDrawerItem(label = { Text("Map") }, selected = false, onClick = {
+                    scope.launch { drawerState.close() }
+                    navController.navigate("eventMap")
                 })
                 NavigationDrawerItem(label = { Text("Log out") }, selected = false, onClick = {
                     scope.launch { drawerState.close() }
-                    onLogout()
+                    navController.navigate("welcome")
                     FirebaseAuth.getInstance().signOut()
 
                 })
+
             }
         }
     ) {

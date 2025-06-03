@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -14,11 +16,31 @@ android {
     defaultConfig {
         applicationId = "com.example.rievent"
         minSdk = 26
-        targetSdk = 35
+        targetSdk = 35 // Or your actual target SDK
         versionCode = 1
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+
+        val localProps = Properties() // Use fully qualified name or import
+        val localPropertiesFile = rootProject.file("local.properties")
+
+        if (localPropertiesFile.exists()) {
+            try {
+                localPropertiesFile.inputStream().use { input ->
+                    localProps.load(input)
+                }
+            } catch (e: Exception) {
+                println("Warning: Could not load local.properties: ${e.message}")
+            }
+        } else {
+            println("Warning: local.properties file not found. API key won't be set from it.")
+        }
+
+        // Set the manifest placeholder
+        // The key in manifestPlaceholders must be a String
+        manifestPlaceholders["HPLACES_API_KEY"] = localProps.getProperty("MAPS_API_KEY", "")
     }
 
     buildTypes {
@@ -82,5 +104,8 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended")
     implementation("com.google.firebase:firebase-messaging-ktx")
     implementation("io.coil-kt:coil-compose:2.5.0")
+    implementation("com.google.android.libraries.places:places:3.3.0")
+    implementation("com.google.maps.android:maps-compose:4.3.0")
+    implementation("com.google.android.gms:play-services-maps:18.2.0")
 
 }
