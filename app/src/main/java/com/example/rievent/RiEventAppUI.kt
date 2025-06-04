@@ -141,6 +141,7 @@ fun RiEventAppUI(
             UpdateEventScreen(
                 eventId = eventId,
                 onUpdated = { navController.navigate("myEvents") }
+,                navController = navController
             )
         }
         composable("events") {
