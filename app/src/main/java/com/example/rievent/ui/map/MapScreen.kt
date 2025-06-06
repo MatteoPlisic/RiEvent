@@ -1,5 +1,6 @@
 package com.example.rievent.ui.map
 
+import EventClusterItem // Make sure this is imported
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -19,6 +20,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -27,24 +29,25 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.rievent.ui.allevents.AllEventCard
+import com.example.rievent.ui.allevents.AllEventsViewModel
 import com.example.rievent.ui.utils.Drawer
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.compose.GoogleMap
 import com.google.maps.android.compose.MapUiSettings
-import com.google.maps.android.compose.Marker
-import com.google.maps.android.compose.MarkerState
+import com.google.maps.android.compose.clustering.Clustering // Import Clustering
 import com.google.maps.android.compose.rememberCameraPositionState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EventsMapScreen(
     viewModel: MapViewModel = viewModel(),
+    // We need the AllEventsViewModel for the card, assuming it's shared or passed in
+    allEventsViewModel: AllEventsViewModel = viewModel(),
     navController: NavController,
 ) {
-    // Collect all necessary states from the ViewModel
-    val allMapEvents by viewModel.allMapEvents.collectAsState() // Renamed for clarity
+    val allMapEvents by viewModel.allMapEvents.collectAsState()
     val visibleEvents by viewModel.visibleEvents.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val errorMessage by viewModel.errorMessage.collectAsState()
@@ -52,41 +55,40 @@ fun EventsMapScreen(
 
     val primorjeGorskiKotarCenter = LatLng(45.3271, 14.4422)
     val cameraPositionState = rememberCameraPositionState {
-        position = CameraPosition.fromLatLngZoom(primorjeGorskiKotarCenter, 9f)
+        position = CameraPosition.fromLatLngZoom(primorjeGorskiKotarCenter, 12f)
     }
 
     val coroutineScope = rememberCoroutineScope()
     val listState = rememberLazyListState()
 
-    // --- SYNCHRONIZATION LOGIC ---
 
-    // 1. Update the visible events list when the map stops moving
+    val clusterItems = remember(allMapEvents) {
+        allMapEvents.map { EventClusterItem(it) }
+    }
+
+
     LaunchedEffect(cameraPositionState.isMoving) {
         if (!cameraPositionState.isMoving) {
-            // The map has settled, get its visible boundaries
             cameraPositionState.projection?.visibleRegion?.latLngBounds?.let { bounds ->
                 viewModel.updateVisibleEvents(bounds)
             }
         } else {
-            // User is moving the map, clear any specific event selection
             viewModel.clearEventSelection()
         }
     }
 
-    // 2. Move the map when an event card is selected from the list
     LaunchedEffect(selectedEventId) {
         selectedEventId?.let { eventId ->
             val event = allMapEvents.find { it.id == eventId }
             event?.location?.let { geoPoint ->
                 val position = LatLng(geoPoint.latitude, geoPoint.longitude)
                 cameraPositionState.animate(
-                    update = CameraUpdateFactory.newLatLngZoom(position, 15f), // Zoom in closer
+                    update = CameraUpdateFactory.newLatLngZoom(position, 15f),
                     durationMs = 1000
                 )
             }
         }
     }
-
 
     Drawer(
         title = "Event Map",
@@ -109,27 +111,29 @@ fun EventsMapScreen(
                     cameraPositionState = cameraPositionState,
                     uiSettings = MapUiSettings(zoomControlsEnabled = true)
                 ) {
-                    allMapEvents.forEach { event ->
-                        event.location?.let { geoPoint ->
-                            Marker(
-                                state = MarkerState(position = LatLng(geoPoint.latitude, geoPoint.longitude)),
-                                title = event.name,
-                                snippet = event.category,
-                                onInfoWindowClick = {
-                                    event.id?.let { navController.navigate("singleEvent/$it") }
-                                },
-                                // Optional: When marker is tapped, select it in the ViewModel
-                                onClick = {
-                                    viewModel.onEventCardSelected(event.id)
-                                    false // Allow default behavior
-                                }
-                            )
+                    // --- MODIFICATION: Replaced Marker loop with Clustering ---
+                    Clustering(
+                        items = clusterItems,
+                        onClusterItemInfoWindowClick = { clusterItem ->
+                            // Navigate when the info window is clicked
+                            clusterItem.event.id?.let { eventId ->
+                                navController.navigate("singleEvent/$eventId")
+                            }
+                        },
+                        onClusterItemClick = { clusterItem ->
+                            // Select the item in the list when the marker is clicked
+                            viewModel.onEventCardSelected(clusterItem.event.id)
+                            false // Allow default behavior (centers map, shows info window)
+                        },
+                        onClusterClick = {
+                            // false allows default zoom behavior
+                            false
                         }
-                    }
+                    )
                 }
             }
 
-            // --- LIST COMPONENT ---
+            // --- LIST COMPONENT (Unchanged) ---
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -157,19 +161,21 @@ fun EventsMapScreen(
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         items(visibleEvents, key = { it.id!! }) { event ->
-
                             Box(
                                 modifier = Modifier.border(
                                     width = if (event.id == selectedEventId) 2.dp else 0.dp,
                                     color = if (event.id == selectedEventId) MaterialTheme.colorScheme.primary else Color.Transparent
                                 )
                             ) {
-
+                                // Your AllEventCard call remains the same
                                 AllEventCard(
                                     event = event,
-                                    allEventsViewModel = viewModel(),
-                                    onCardClick = {eventId ->
-                                        navController.navigate("singleEvent/$eventId") }
+                                    allEventsViewModel = allEventsViewModel,
+                                    onCardClick = { eventId ->
+                                        // Card click can either navigate or select on map
+                                        // Let's make it select on map for consistency
+                                       navController.navigate("singleEvent/$eventId")
+                                    }
                                 )
                             }
                         }
