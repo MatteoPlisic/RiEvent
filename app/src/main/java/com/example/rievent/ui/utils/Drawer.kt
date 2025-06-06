@@ -89,6 +89,10 @@ fun Drawer(
                     scope.launch { drawerState.close() }
                     navController.navigate("eventMap")
                 })
+                NavigationDrawerItem(label = { Text("Messages") }, selected = false, onClick = {
+                    scope.launch { drawerState.close() }
+                    navController.navigate("messages")
+                })
                 NavigationDrawerItem(label = { Text("Log out") }, selected = false, onClick = {
                     scope.launch { drawerState.close() }
                     FirebaseAuth.getInstance().signOut()

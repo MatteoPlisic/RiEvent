@@ -1,5 +1,8 @@
 package com.example.rievent.ui.userprofile
 
+import ChatViewModel
+import ParticipantInfo
+import android.util.Log
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -9,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -16,6 +20,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Email
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -37,11 +42,13 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavController
 import coil.compose.rememberAsyncImagePainter
 import coil.request.ImageRequest
 import com.example.rievent.models.User
 import com.example.rievent.ui.allevents.AllEventCard
 import com.example.rievent.ui.allevents.AllEventsViewModel
+import com.google.firebase.auth.FirebaseAuth
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -51,7 +58,9 @@ fun UserProfileScreen(
     allEventsViewModel: AllEventsViewModel = viewModel(), // If using AllEventCard and it needs its own VM
     onBack: () -> Unit,
     onNavigateToSingleEvent: (eventId: String) -> Unit,
-    isCurrentUserProfile: Boolean // To know if this is the logged-in user's own profile
+    isCurrentUserProfile: Boolean, // To know if this is the logged-in user's own profile
+    chatViewModel: ChatViewModel,
+    navController: NavController
 ) {
     val userProfile by viewModel.userProfile.collectAsState()
     val createdEvents by viewModel.createdEvents.collectAsState()
@@ -99,7 +108,9 @@ fun UserProfileScreen(
                 } else if (userProfile != null) {
                     UserProfileHeader(
                         user = userProfile!!, viewModel,
-                        isCurrentUserProfile = isCurrentUserProfile
+                        isCurrentUserProfile = isCurrentUserProfile,
+                        chatViewModel = chatViewModel,
+                        navController = navController
                     )
                 } else if (error != null && userProfile == null) {
                     Text("Error: $error", color = MaterialTheme.colorScheme.error)
@@ -150,10 +161,13 @@ fun UserProfileScreen(
 fun UserProfileHeader(
     user: User,
     viewModel: UserProfileViewModel,
-    isCurrentUserProfile: Boolean // This is important!
+    isCurrentUserProfile: Boolean,
+    chatViewModel: ChatViewModel,
+    navController: NavController
 ) {
     val isFollowing by viewModel.isFollowing.collectAsState()
     val isFollowActionLoading by viewModel.isFollowActionLoading.collectAsState()
+    val currentUser = FirebaseAuth.getInstance().currentUser
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier.fillMaxWidth()
@@ -216,6 +230,51 @@ fun UserProfileHeader(
                 }
             }
         }
+        if (!isCurrentUserProfile && currentUser != null) {
+            // This can be a single button or in a Row with the Follow button
+            Button(
+                onClick = {
+                    // 1. Prepare participant info (Your code was already correct here)
+                    val currentUserInfo = ParticipantInfo(
+                        name = currentUser.displayName ?: "You",
+                        imageUrl = currentUser.photoUrl?.toString()
+                    )
+                    val profileUserInfo = ParticipantInfo(
+                        name = user.displayName ?: "User",
+                        imageUrl = user.photoUrl
+                    )
 
+                    // --- START OF NEW LOGIC ---
+
+                    // 2. Create the deterministic chatId by sorting the UIDs
+                    val participantIds = listOf(currentUser.uid, user.uid).sorted()
+                    val chatId = participantIds.joinToString(separator = "_")
+
+                    // 3. Prepare the details map for the ViewModel
+                    val participantDetails = mapOf(
+                        currentUser.uid to currentUserInfo,
+                        user.uid to profileUserInfo
+                    )
+
+                    // 4. Call the prepare function in the SHARED chatViewModel
+                    //    (This chatViewModel must be passed into UserProfileHeader)
+                    chatViewModel.prepareForNewChat(participantDetails)
+
+                    // 5. Navigate to the conversation screen with the generated chatId
+                    try {
+                        navController.navigate("conversation/$chatId")
+                    }
+                    catch (Exception: Exception){
+                        Log.e("UserProfileScreen", "Error navigating to conversation: $Exception")
+                    }
+                    // --- END OF NEW LOGIC ---
+                },
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+            ) {
+                Icon(Icons.Default.Email, contentDescription = "Message")
+                Spacer(Modifier.width(8.dp))
+                Text("Message")
+            }
+        }
     }
 }

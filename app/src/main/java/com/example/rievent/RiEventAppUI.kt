@@ -1,5 +1,9 @@
 package com.example.rievent
 
+import ChatListScreen
+import ChatScreen
+import ChatViewModel
+
 import android.util.Log
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -13,11 +17,13 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.rievent.ui.allevents.AllEventsScreen
 import com.example.rievent.ui.allevents.AllEventsViewModel
+import com.example.rievent.ui.chat.SearchUserScreen
+import com.example.rievent.ui.chat.SearchUserViewModel
 import com.example.rievent.ui.createevent.CreateEventScreen
 import com.example.rievent.ui.home.HomeScreen
 import com.example.rievent.ui.login.LoginScreen
 import com.example.rievent.ui.login.LoginViewModel
-import com.example.rievent.ui.map.EventsMapScreen
+import com.example.rievent.ui.map.MapScreen
 import com.example.rievent.ui.map.MapViewModel
 import com.example.rievent.ui.myevents.MyEventsScreen
 import com.example.rievent.ui.myevents.MyEventsViewModel
@@ -46,6 +52,10 @@ fun RiEventAppUI(
     }
 
     val eventIdToNavigate by deepLinkEventIdFlow.collectAsState()
+
+    val sharedChatViewModel: ChatViewModel = viewModel()
+
+
 
     LaunchedEffect(eventIdToNavigate) {
         Log.d("RiEventAppUI", "Deep link navigation NOT triggered for eventId: $eventIdToNavigate")
@@ -176,7 +186,9 @@ fun RiEventAppUI(
                     },
                     viewModel = viewModel,
                     allEventsViewModel = allEventsViewModel,
-                    isCurrentUserProfile = userId == FirebaseAuth.getInstance().currentUser?.uid
+                    isCurrentUserProfile = userId == FirebaseAuth.getInstance().currentUser?.uid,
+                    chatViewModel = sharedChatViewModel,
+                    navController = navController
                 )
             }
             else{
@@ -190,13 +202,15 @@ fun RiEventAppUI(
                 val allEventsViewModel: AllEventsViewModel = viewModel()
                 UserProfileScreen(
                     userId = userId,
+                    viewModel = viewModel,
+                    allEventsViewModel = allEventsViewModel,
                     onBack = { navController.popBackStack() },
                     onNavigateToSingleEvent = { eventId ->
                         navController.navigate("singleEvent/$eventId")
                     },
-                    viewModel = viewModel,
-                    allEventsViewModel = allEventsViewModel,
-                    isCurrentUserProfile = userId == FirebaseAuth.getInstance().currentUser?.uid
+                    isCurrentUserProfile = userId == FirebaseAuth.getInstance().currentUser?.uid,
+                    chatViewModel = sharedChatViewModel,
+                    navController = navController
                 )
             }
             else{
@@ -205,11 +219,40 @@ fun RiEventAppUI(
         }
         composable("eventMap") { backStackEntry ->
             val viewModel: MapViewModel = viewModel()
-            EventsMapScreen(
+            MapScreen(
                 navController = navController,
                 viewModel = viewModel,
+            )
+        }
+        composable("messages") {
 
+            val viewModel: ChatViewModel = viewModel() // Shared ViewModel for chat
+            ChatListScreen(
+                navController = navController,
+                viewModel = sharedChatViewModel // Pass the shared ChatViewModel
+            )
+        }
 
+        composable("conversation/{chatId}") { backStackEntry ->
+
+            val chatId = backStackEntry.arguments?.getString("chatId")
+            if (chatId != null) {
+                ChatScreen(
+                    chatId = chatId,
+                    navController = navController,
+                    viewModel = sharedChatViewModel
+                )
+            } else {
+                Text("Error: Chat ID missing.")
+            }
+        }
+
+        composable("searchUsers") {
+            val viewModel: SearchUserViewModel = viewModel()
+            SearchUserScreen(
+                navController = navController,
+                findUserViewModel = viewModel,
+                chatViewModel = sharedChatViewModel
             )
         }
     }

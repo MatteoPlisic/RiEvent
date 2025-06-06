@@ -1,7 +1,8 @@
 package com.example.rievent.ui.map
 
-import EventClusterItem // Make sure this is imported
+import EventClusterItem
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,16 +13,27 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -36,14 +48,16 @@ import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.compose.GoogleMap
 import com.google.maps.android.compose.MapUiSettings
-import com.google.maps.android.compose.clustering.Clustering // Import Clustering
+import com.google.maps.android.compose.clustering.Clustering
 import com.google.maps.android.compose.rememberCameraPositionState
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun EventsMapScreen(
+fun MapScreen(
     viewModel: MapViewModel = viewModel(),
-    // We need the AllEventsViewModel for the card, assuming it's shared or passed in
     allEventsViewModel: AllEventsViewModel = viewModel(),
     navController: NavController,
 ) {
@@ -52,18 +66,48 @@ fun EventsMapScreen(
     val isLoading by viewModel.isLoading.collectAsState()
     val errorMessage by viewModel.errorMessage.collectAsState()
     val selectedEventId by viewModel.selectedEventId.collectAsState()
+    val selectedDate by viewModel.selectedDate.collectAsState()
 
-    val primorjeGorskiKotarCenter = LatLng(45.3271, 14.4422)
-    val cameraPositionState = rememberCameraPositionState {
-        position = CameraPosition.fromLatLngZoom(primorjeGorskiKotarCenter, 12f)
+    // --- Date Picker States and Dialog ---
+    var showDatePickerDialog by remember { mutableStateOf(false) }
+    val datePickerState = rememberDatePickerState()
+    val dateFormatter = remember { DateTimeFormatter.ofPattern("dd MMM yyyy") }
+
+    if (showDatePickerDialog) {
+        DatePickerDialog(
+            onDismissRequest = { showDatePickerDialog = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    showDatePickerDialog = false
+                    datePickerState.selectedDateMillis?.let {
+                        val newDate = Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalDate()
+                        viewModel.onDateSelected(newDate)
+                    }
+                }) { Text("OK") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePickerDialog = false }) { Text("Cancel") }
+            }
+        ) {
+            DatePicker(state = datePickerState)
+        }
     }
 
-    val coroutineScope = rememberCoroutineScope()
+    val cameraPositionState = rememberCameraPositionState {
+        position = CameraPosition.fromLatLngZoom(LatLng(45.3271, 14.4422), 12f)
+    }
     val listState = rememberLazyListState()
-
 
     val clusterItems = remember(allMapEvents) {
         allMapEvents.map { EventClusterItem(it) }
+    }
+
+    LaunchedEffect(allMapEvents) {
+        if (allMapEvents.isNotEmpty()) {
+            cameraPositionState.projection?.visibleRegion?.latLngBounds?.let { bounds ->
+                viewModel.updateVisibleEvents(bounds)
+            }
+        }
     }
 
 
@@ -79,8 +123,7 @@ fun EventsMapScreen(
 
     LaunchedEffect(selectedEventId) {
         selectedEventId?.let { eventId ->
-            val event = allMapEvents.find { it.id == eventId }
-            event?.location?.let { geoPoint ->
+            allMapEvents.find { it.id == eventId }?.location?.let { geoPoint ->
                 val position = LatLng(geoPoint.latitude, geoPoint.longitude)
                 cameraPositionState.animate(
                     update = CameraUpdateFactory.newLatLngZoom(position, 15f),
@@ -100,58 +143,69 @@ fun EventsMapScreen(
                 .fillMaxSize()
                 .padding(drawerPadding)
         ) {
-            // --- MAP COMPONENT ---
+            // --- Date Filter TextField ---
+            OutlinedTextField(
+                value = selectedDate?.format(dateFormatter) ?: "Any Date",
+                onValueChange = {},
+                readOnly = true,
+                label = { Text("Filter by Date") },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                    .clickable { showDatePickerDialog = true },
+                trailingIcon = {
+                    if (selectedDate != null) {
+                        IconButton(onClick = { viewModel.onDateSelected(null) }) {
+                            Icon(Icons.Filled.Clear, "Clear Date Filter")
+                        }
+                    } else {
+                        IconButton(onClick = { showDatePickerDialog = true }) {
+                            Icon(Icons.Filled.DateRange, "Select Date")
+                        }
+                    }
+                }
+            )
+
+            // --- Map Component ---
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .weight(1f) // Map takes the top half
+                    .weight(1f)
             ) {
                 GoogleMap(
                     modifier = Modifier.fillMaxSize(),
                     cameraPositionState = cameraPositionState,
                     uiSettings = MapUiSettings(zoomControlsEnabled = true)
                 ) {
-                    // --- MODIFICATION: Replaced Marker loop with Clustering ---
                     Clustering(
                         items = clusterItems,
-                        onClusterItemInfoWindowClick = { clusterItem ->
-                            // Navigate when the info window is clicked
-                            clusterItem.event.id?.let { eventId ->
-                                navController.navigate("singleEvent/$eventId")
-                            }
+                        onClusterItemInfoWindowClick = { item ->
+                            item.event.id?.let { navController.navigate("singleEvent/$it") }
                         },
-                        onClusterItemClick = { clusterItem ->
-                            // Select the item in the list when the marker is clicked
-                            viewModel.onEventCardSelected(clusterItem.event.id)
-                            false // Allow default behavior (centers map, shows info window)
-                        },
-                        onClusterClick = {
-                            // false allows default zoom behavior
+                        onClusterItemClick = { item ->
+                            viewModel.onEventCardSelected(item.event.id)
                             false
-                        }
+                        },
+                        onClusterClick = { false }
                     )
                 }
             }
 
-            // --- LIST COMPONENT (Unchanged) ---
+            // --- List Component ---
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .weight(1f), // List takes the bottom half
+                    .weight(1f),
                 contentAlignment = Alignment.Center
             ) {
-                if (isLoading) {
+                if (isLoading && allMapEvents.isEmpty()) {
                     CircularProgressIndicator()
                 } else if (errorMessage != null) {
-                    Text(
-                        text = "Error: $errorMessage",
-                        color = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.padding(16.dp)
-                    )
+                    Text("Error: $errorMessage", color = MaterialTheme.colorScheme.error)
                 } else if (visibleEvents.isEmpty()) {
                     Text(
-                        "No events found in this area.",
-                        modifier = Modifier.padding(16.dp)
+                        if (selectedDate != null && allMapEvents.isEmpty()) "No events found for this date."
+                        else "No events found in this map area."
                     )
                 } else {
                     LazyColumn(
@@ -167,15 +221,10 @@ fun EventsMapScreen(
                                     color = if (event.id == selectedEventId) MaterialTheme.colorScheme.primary else Color.Transparent
                                 )
                             ) {
-                                // Your AllEventCard call remains the same
                                 AllEventCard(
                                     event = event,
                                     allEventsViewModel = allEventsViewModel,
-                                    onCardClick = { eventId ->
-                                        // Card click can either navigate or select on map
-                                        // Let's make it select on map for consistency
-                                       navController.navigate("singleEvent/$eventId")
-                                    }
+                                    onCardClick = { eventId -> navController.navigate("singleEvent/$eventId") }
                                 )
                             }
                         }
