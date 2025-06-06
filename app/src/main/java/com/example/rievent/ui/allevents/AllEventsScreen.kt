@@ -1,8 +1,12 @@
 package com.example.rievent.ui.allevents
 
-// Added imports for Date Picker
 import Event
+import android.Manifest
+import android.annotation.SuppressLint
+import android.location.Location
 import android.util.Log
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -38,6 +42,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
@@ -64,12 +69,17 @@ import coil.compose.rememberAsyncImagePainter
 import coil.request.ImageRequest
 import com.example.rievent.models.EventRSPV
 import com.example.rievent.ui.utils.Drawer
+import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
+import com.google.android.gms.tasks.CancellationTokenSource
 import com.google.firebase.auth.FirebaseAuth
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.util.Locale
 
+@SuppressLint("MissingPermission")
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AllEventsScreen(
@@ -77,23 +87,46 @@ fun AllEventsScreen(
     navController: NavController
 ) {
     val events by viewModel.events.collectAsState()
+    val context = LocalContext.current
 
-    // ... (searchText, searchByUser, selectedCategory, selectedDate, datePickerState states remain)
+    // States for filters
     var searchText by remember { mutableStateOf("") }
     var searchByUser by remember { mutableStateOf(false) }
     var expandedCategory by remember { mutableStateOf(false) }
     var selectedCategory by remember { mutableStateOf("Any") }
-    val categoryOptions = listOf("Any","Sports", "Academic", "Business", "Culture", "Concert", "Quizz", "Party")
-
+    val categoryOptions = listOf("Any", "Sports", "Academic", "Business", "Culture", "Concert", "Quizz", "Party")
     var selectedDate by remember { mutableStateOf<LocalDate?>(null) }
     var showDatePickerDialog by remember { mutableStateOf(false) }
     val dateFormatter = remember { DateTimeFormatter.ofPattern("dd MMM yyyy") }
 
-    val datePickerState = rememberDatePickerState(
-        initialSelectedDateMillis = null,//selectedDate?.atStartOfDay(ZoneId.systemDefault())?.toInstant()?.toEpochMilli(),
-        yearRange = IntRange(LocalDate.now().year - 10, LocalDate.now().year + 10)
+    // States for location and distance filter
+    var userLocation by remember { mutableStateOf<Location?>(null) }
+    var distanceFilterKm by remember { mutableStateOf(50f) } // Default to 50km
+
+    // Location permission launcher
+    val locationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+        onResult = { isGranted ->
+            if (isGranted) {
+                // Permission granted, get the current location
+                val fusedLocationClient = LocationServices.getFusedLocationProviderClient(context)
+                fusedLocationClient.getCurrentLocation(
+                    Priority.PRIORITY_HIGH_ACCURACY,
+                    CancellationTokenSource().token
+                ).addOnSuccessListener { location: Location? ->
+                    userLocation = location
+                    Log.d("Location", "Location acquired: $location")
+                }.addOnFailureListener {
+                    Log.e("Location", "Failed to get location", it)
+                }
+            } else {
+                Log.d("Location", "Location permission denied by user.")
+            }
+        }
     )
-    // ... (datePicker dialog remains the same)
+
+    // Date Picker state and dialog
+    val datePickerState = rememberDatePickerState()
     if (showDatePickerDialog) {
         DatePickerDialog(
             onDismissRequest = { showDatePickerDialog = false },
@@ -113,19 +146,20 @@ fun AllEventsScreen(
         }
     }
 
-
+    // Initial data load and permission request
     LaunchedEffect(Unit) {
-        viewModel.loadAllPublicEvents() // Initial load
+        viewModel.loadAllPublicEvents()
+        locationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
     }
 
-    LaunchedEffect(searchText, searchByUser, selectedCategory, selectedDate) {
-        viewModel.search(searchText, searchByUser, selectedCategory, selectedDate)
+    // Trigger search whenever a filter changes
+    LaunchedEffect(searchText, searchByUser, selectedCategory, selectedDate, distanceFilterKm, userLocation) {
+        viewModel.search(searchText, searchByUser, selectedCategory, selectedDate, distanceFilterKm, userLocation)
     }
 
     // Collect navigation actions from ViewModel
     LaunchedEffect(key1 = viewModel.navigateToSingleEventAction) {
         viewModel.navigateToSingleEventAction.collect { eventId ->
-            Log.d("AllEventsScreen", "Collected navigation action for eventId: $eventId")
             navController.navigate("singleEvent/$eventId")
         }
     }
@@ -139,25 +173,19 @@ fun AllEventsScreen(
                 .fillMaxSize()
                 .padding(top = 90.dp, start = 16.dp, end = 16.dp, bottom = 16.dp)
         ) {
-            // ... (OutlinedTextField for search, Row for category and filter chips, OutlinedTextField for date filter remain the same)
+            // Search TextField
             OutlinedTextField(
                 value = searchText,
                 onValueChange = { searchText = it },
                 modifier = Modifier.fillMaxWidth(),
                 label = { Text("Search Event/User") },
-                trailingIcon = {
-                    Icon(
-                        imageVector = if (searchByUser) Icons.Default.Person else Icons.Default.Search,
-                        contentDescription = "Search Mode Icon"
-                    )
-                }
+                trailingIcon = { Icon(if (searchByUser) Icons.Default.Person else Icons.Default.Search, "Search Mode") }
             )
             Spacer(modifier = Modifier.height(8.dp))
 
+            // Category and User/Event filters
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 8.dp),
+                modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -168,71 +196,69 @@ fun AllEventsScreen(
                 ) {
                     TextField(
                         value = selectedCategory,
-                        onValueChange = { /* no‐op */ },
+                        onValueChange = {},
                         readOnly = true,
                         label = { Text("Category") },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expandedCategory) },
                         modifier = Modifier.menuAnchor()
                     )
-                    ExposedDropdownMenu(
-                        expanded = expandedCategory,
-                        onDismissRequest = { expandedCategory = false }
-                    ) {
+                    ExposedDropdownMenu(expanded = expandedCategory, onDismissRequest = { expandedCategory = false }) {
                         categoryOptions.forEach { category ->
-                            DropdownMenuItem(
-                                text = { Text(category) },
-                                onClick = {
-                                    selectedCategory = category
-                                    expandedCategory = false
-                                }
-                            )
+                            DropdownMenuItem(text = { Text(category) }, onClick = {
+                                selectedCategory = category
+                                expandedCategory = false
+                            })
                         }
                     }
                 }
-
-                FilterChip(
-                    modifier = Modifier.weight(1f),
-                    selected = !searchByUser,
-                    onClick = { searchByUser = false },
-                    label = { Text("By Event", maxLines = 1) }
-                )
-
-                FilterChip(
-                    modifier = Modifier.weight(1f),
-                    selected = searchByUser,
-                    onClick = { searchByUser = true },
-                    label = { Text("By User", maxLines = 1) }
-                )
+                FilterChip(selected = !searchByUser, onClick = { searchByUser = false }, label = { Text("By Event", maxLines = 1) })
+                FilterChip(selected = searchByUser, onClick = { searchByUser = true }, label = { Text("By User", maxLines = 1) })
             }
+            Spacer(modifier = Modifier.height(8.dp))
 
+
+            // Date Filter TextField
             OutlinedTextField(
                 value = selectedDate?.format(dateFormatter) ?: "Any Date",
                 onValueChange = {},
                 readOnly = true,
                 label = { Text("Filter by Date") },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { showDatePickerDialog = true
-                        Log.d("DatePicker", "TextField clicked, showDatePickerDialog = true")},
+                modifier = Modifier.fillMaxWidth().clickable { showDatePickerDialog = true },
                 trailingIcon = {
                     if (selectedDate != null) {
-                        IconButton(onClick = { selectedDate = null; showDatePickerDialog = true }) {
-                            Icon(Icons.Filled.Clear, contentDescription = "Clear Date Filter")
+                        IconButton(onClick = { selectedDate = null }) {
+                            Icon(Icons.Filled.Clear, "Clear Date")
                         }
                     } else {
-                        IconButton(onClick = {
-                            showDatePickerDialog = true
-                            Log.d("DatePicker", "DateRange icon clicked, showDatePickerDialog = true")
-                        }) {
-                            Icon(Icons.Filled.DateRange, contentDescription = "Select Date")
+                        IconButton(onClick = { showDatePickerDialog = true }) {
+                            Icon(Icons.Filled.DateRange, "Select Date")
                         }
                     }
                 }
             )
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Distance Slider
+            Text(
+                text = "Distance: " + if (distanceFilterKm >= 50f) {
+                    "Any"
+                } else {
+                    String.format(Locale.US, "within %.0f km", distanceFilterKm)
+                },
+                style = MaterialTheme.typography.labelLarge,
+                modifier = Modifier.padding(start = 4.dp)
+            )
+            Slider(
+                value = distanceFilterKm,
+                onValueChange = { distanceFilterKm = it },
+                valueRange = 1f..50f,
+                steps = 48,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)
+            )
             Spacer(modifier = Modifier.height(16.dp))
 
-
-            if (events.isEmpty() && (searchText.isNotEmpty() || selectedCategory != "Any" || selectedDate != null)) {
+            // Event List
+            if (events.isEmpty() && (searchText.isNotEmpty() || selectedCategory != "Any" || selectedDate != null || distanceFilterKm < 50f)) {
                 Text("No events found matching your criteria.", modifier = Modifier.padding(16.dp))
             } else if (events.isEmpty()) {
                 Text("No public events available at the moment.", modifier = Modifier.padding(16.dp))
@@ -247,7 +273,6 @@ fun AllEventsScreen(
                             event = event,
                             allEventsViewModel = viewModel,
                             onCardClick = { eventId -> viewModel.onEventClicked(eventId) }
-
                         )
                     }
                 }
@@ -264,34 +289,28 @@ fun AllEventCard(
     onCardClick: (eventId: String) -> Unit
 ) {
     val rsvpMap by allEventsViewModel.eventsRsvpsMap.collectAsState()
-    val eventRsvpData: EventRSPV? = remember(event.id, rsvpMap) {
-        event.id?.let { rsvpMap[it] }
-    }
-
+    val eventRsvpData: EventRSPV? = remember(event.id, rsvpMap) { event.id?.let { rsvpMap[it] } }
     val currentUid = remember { FirebaseAuth.getInstance().currentUser?.uid }
 
     DisposableEffect(event.id, allEventsViewModel) {
         val currentEventId = event.id
-        if (currentEventId != null && currentEventId.isNotBlank()) {
+        if (!currentEventId.isNullOrBlank()) {
             allEventsViewModel.listenToRsvpForEvent(currentEventId)
         }
         onDispose {
-            if (currentEventId != null && currentEventId.isNotBlank()) {
+            if (!currentEventId.isNullOrBlank()) {
                 allEventsViewModel.stopListeningToRsvp(currentEventId)
             }
         }
     }
 
     val (thisUserComing, thisUserMaybeComing, thisUserNotComing) = remember(eventRsvpData, currentUid) {
-        if (currentUid == null || eventRsvpData == null) {
-            Triple(false, false, false)
-        } else {
-            Triple(
-                eventRsvpData.coming_users.any { it.userId == currentUid },
-                eventRsvpData.maybe_users.any { it.userId == currentUid },
-                eventRsvpData.not_coming_users.any { it.userId == currentUid }
-            )
-        }
+        if (currentUid == null || eventRsvpData == null) Triple(false, false, false)
+        else Triple(
+            eventRsvpData.coming_users.any { it.userId == currentUid },
+            eventRsvpData.maybe_users.any { it.userId == currentUid },
+            eventRsvpData.not_coming_users.any { it.userId == currentUid }
+        )
     }
 
     val comingCount = eventRsvpData?.coming_users?.size ?: 0
@@ -304,114 +323,30 @@ fun AllEventCard(
             .padding(horizontal = 8.dp)
             .clickable { event.id?.let { onCardClick(it) } },
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-
     ) {
-        // Use a Box to layer the small image on top of the content
         Box(modifier = Modifier.fillMaxWidth()) {
-            // Main content Column (everything except the small image)
             Column(modifier = Modifier.padding(16.dp)) {
-                // Add some top padding to make space for the image if it overlaps,
-                // or adjust image padding below. For top-right, text might flow under it naturally.
-                // Spacer(modifier = Modifier.height(20.dp)) // Optional: if image is large and you want text below
-
                 Text(event.name, style = MaterialTheme.typography.titleLarge)
                 Text("Category: ${event.category}", style = MaterialTheme.typography.bodyMedium)
                 Text("By: ${event.ownerName ?: "N/A"}", style = MaterialTheme.typography.bodySmall)
-
                 val eventDateFormatter = remember { DateTimeFormatter.ofPattern("EEE, dd MMM yyyy, HH:mm") }
-                event.startTime?.let {
-                    Text(
-                        "Starts: ${it.toDate().toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime().format(eventDateFormatter)}",
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                }
-                event.endTime?.let {
-                    Text(
-                        "Ends: ${it.toDate().toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime().format(eventDateFormatter)}",
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                }
-
+                event.startTime?.let { Text("Starts: ${it.toDate().toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime().format(eventDateFormatter)}", style = MaterialTheme.typography.bodySmall) }
+                event.endTime?.let { Text("Ends: ${it.toDate().toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime().format(eventDateFormatter)}", style = MaterialTheme.typography.bodySmall) }
                 Spacer(Modifier.height(12.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    // ... RSVP Buttons (unchanged) ...
-                    Button(
-                        onClick = { allEventsViewModel.updateRsvp(event.id, RsvpStatus.COMING) },
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (thisUserComing) Color(0xFF66BB6A) else MaterialTheme.colorScheme.primaryContainer,
-                            contentColor = if (thisUserComing) Color.White else MaterialTheme.colorScheme.onPrimaryContainer
-                        ),
-                        enabled = !thisUserComing
-                    ) {
-                        Text("Coming\n${comingCount}", fontSize = 11.sp, lineHeight = 12.sp, textAlign = TextAlign.Center)
-                    }
-
-                    Button(
-                        onClick = { allEventsViewModel.updateRsvp(event.id, RsvpStatus.MAYBE) },
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (thisUserMaybeComing) Color(0xFFFFCA28) else MaterialTheme.colorScheme.secondaryContainer,
-                            contentColor = if (thisUserMaybeComing) Color.Black else MaterialTheme.colorScheme.onSecondaryContainer
-                        ),
-                        enabled = !thisUserMaybeComing
-                    ) {
-                        Text("Maybe\n${maybeComingCount}", fontSize = 11.sp, lineHeight = 12.sp, textAlign = TextAlign.Center)
-                    }
-
-                    Button(
-                        onClick = { allEventsViewModel.updateRsvp(event.id, RsvpStatus.NOT_COMING) },
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (thisUserNotComing) Color(0xFFEF5350) else MaterialTheme.colorScheme.errorContainer,
-                            contentColor = if (thisUserNotComing) Color.White else MaterialTheme.colorScheme.onErrorContainer
-                        ),
-                        enabled = !thisUserNotComing
-                    ) {
-                        Text("Not Coming\n${notComingCount}", fontSize = 11.sp, lineHeight = 12.sp, textAlign = TextAlign.Center)
-                    }
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = { allEventsViewModel.updateRsvp(event.id, RsvpStatus.COMING) }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = if (thisUserComing) Color(0xFF66BB6A) else MaterialTheme.colorScheme.primaryContainer, contentColor = if (thisUserComing) Color.White else MaterialTheme.colorScheme.onPrimaryContainer), enabled = !thisUserComing) { Text("Coming\n${comingCount}", fontSize = 11.sp, lineHeight = 12.sp, textAlign = TextAlign.Center) }
+                    Button(onClick = { allEventsViewModel.updateRsvp(event.id, RsvpStatus.MAYBE) }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = if (thisUserMaybeComing) Color(0xFFFFCA28) else MaterialTheme.colorScheme.secondaryContainer, contentColor = if (thisUserMaybeComing) Color.Black else MaterialTheme.colorScheme.onSecondaryContainer), enabled = !thisUserMaybeComing) { Text("Maybe\n${maybeComingCount}", fontSize = 11.sp, lineHeight = 12.sp, textAlign = TextAlign.Center) }
+                    Button(onClick = { allEventsViewModel.updateRsvp(event.id, RsvpStatus.NOT_COMING) }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = if (thisUserNotComing) Color(0xFFEF5350) else MaterialTheme.colorScheme.errorContainer, contentColor = if (thisUserNotComing) Color.White else MaterialTheme.colorScheme.onErrorContainer), enabled = !thisUserNotComing) { Text("Not Coming\n${notComingCount}", fontSize = 11.sp, lineHeight = 12.sp, textAlign = TextAlign.Center) }
                 }
             }
-
-            // Small Event Image in the Top Right Corner
             event.imageUrl?.let { imageUrl ->
                 Image(
-                    painter = rememberAsyncImagePainter(
-                        ImageRequest.Builder(LocalContext.current)
-                            .data(data = imageUrl)
-                            .apply {
-                                crossfade(true)
-
-                                // placeholder(R.drawable.placeholder_image_small)
-                                // error(R.drawable.error_image_small)
-                            }.build()
-                    ),
+                    painter = rememberAsyncImagePainter(ImageRequest.Builder(LocalContext.current).data(data = imageUrl).crossfade(true).build()),
                     contentDescription = "Event Icon",
-                    modifier = Modifier
-                        .size(width = 100.dp, height = 70.dp) // Adjust size as needed for the small image
-                        .padding(top = 8.dp, end = 8.dp) // Padding from the card edges
-                        .align(Alignment.TopEnd), // Align to the top right of the Box
-
+                    modifier = Modifier.size(width = 100.dp, height = 70.dp).padding(top = 8.dp, end = 8.dp).align(Alignment.TopEnd),
                     contentScale = ContentScale.Crop
                 )
             }
-            // Optional: Placeholder if no image
-            // else {
-            //     Icon(
-            //         imageVector = Icons.Default.Event, // Or your preferred placeholder
-            //         contentDescription = "Event Icon Placeholder",
-            //         modifier = Modifier
-            //             .size(56.dp)
-            //             .padding(top = 8.dp, end = 8.dp)
-            //             .align(Alignment.TopEnd)
-            //             .clip(CircleShape),
-            //         tint = MaterialTheme.colorScheme.primary
-            //     )
-            // }
         }
     }
 }
