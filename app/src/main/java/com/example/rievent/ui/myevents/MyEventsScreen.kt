@@ -63,7 +63,8 @@ fun MyEventsScreen(viewModel: MyEventsViewModel = viewModel(),
     }
     Drawer(
         title = "Home",
-        navController = navController
+        navController = navController,
+        gesturesEnabled = true,
     ){ innerPadding ->
 
 

@@ -18,7 +18,7 @@ import com.example.rievent.ui.home.HomeScreen
 import com.example.rievent.ui.login.LoginScreen
 import com.example.rievent.ui.login.LoginViewModel
 import com.example.rievent.ui.map.EventsMapScreen
-import com.example.rievent.ui.map.EventsMapViewModel
+import com.example.rievent.ui.map.MapViewModel
 import com.example.rievent.ui.myevents.MyEventsScreen
 import com.example.rievent.ui.myevents.MyEventsViewModel
 import com.example.rievent.ui.register.RegisterScreen
@@ -204,7 +204,7 @@ fun RiEventAppUI(
             }
         }
         composable("eventMap") { backStackEntry ->
-            val viewModel: EventsMapViewModel = viewModel()
+            val viewModel: MapViewModel = viewModel()
             EventsMapScreen(
                 navController = navController,
                 viewModel = viewModel,

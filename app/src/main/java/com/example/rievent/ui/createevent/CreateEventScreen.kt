@@ -142,6 +142,7 @@ fun CreateEventScreen(
     Drawer(
         title = "Create Event",
         navController = navController,
+        gesturesEnabled = true,
         {
             Box(
                 modifier = Modifier
@@ -335,7 +336,7 @@ fun CreateEventScreen(
                                 )
                                 viewModel.createEventWithImage(event, imageUri)
                             },
-                            enabled = !isLoading && name.isNotBlank() && description.isNotBlank() && category.isNotBlank() && startDate.isNotBlank() && startTime.isNotBlank() && addressInput.isNotBlank(),
+                            enabled = !isLoading && name.isNotBlank() && description.isNotBlank() && category.isNotBlank() && startDate.isNotBlank() && startTime.isNotBlank() && addressInput.isNotBlank() && endDate.isNotBlank() && endTime.isNotBlank(),
                             modifier = Modifier.fillMaxWidth().height(48.dp)
                         ) { Text(if (isLoading) "Creating..." else "Create Event") }
                     }

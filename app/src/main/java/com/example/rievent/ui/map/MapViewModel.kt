@@ -1,11 +1,12 @@
-package com.example.rievent.ui.map // Your package
+package com.example.rievent.ui.map
 
-import Event // Import your Event data class
+import Event
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.google.android.gms.maps.model.LatLng
+import com.google.android.gms.maps.model.LatLngBounds
 import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.firestore.GeoPoint
 import com.google.firebase.firestore.QuerySnapshot
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -13,67 +14,86 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 
-data class MapMarkerInfo( // A simple data class to hold info for a map marker
-    val id: String, // Event ID
-    val position: GeoPoint,
-    val title: String,
-    val snippet: String?
-)
-
-class EventsMapViewModel : ViewModel() {
+class MapViewModel : ViewModel() {
 
     private val db = FirebaseFirestore.getInstance()
 
+    // --- STATE FLOWS ---
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
 
-    // This will hold events that have a GeoPoint location
-    private val _eventsForMap = MutableStateFlow<List<Event>>(emptyList())
-    val eventsForMap: StateFlow<List<Event>> = _eventsForMap.asStateFlow()
+    // --- NEW: Two separate lists for better state management ---
+    // 1. Holds ALL events fetched from Firestore for the map
+    val allMapEvents = MutableStateFlow<List<Event>>(emptyList())
 
+    // 2. Holds only the events currently visible in the map's viewport
+    private val _visibleEvents = MutableStateFlow<List<Event>>(emptyList())
+    val visibleEvents: StateFlow<List<Event>> = _visibleEvents.asStateFlow()
 
+    // Keep track of the currently selected event to highlight it
+    private val _selectedEventId = MutableStateFlow<String?>(null)
+    val selectedEventId: StateFlow<String?> = _selectedEventId.asStateFlow()
 
     init {
         fetchEventsWithLocations()
     }
 
-    fun fetchEventsWithLocations() {
+    private fun fetchEventsWithLocations() {
         _isLoading.value = true
         _errorMessage.value = null
         viewModelScope.launch {
             try {
-                // Query for events that have the 'location' field (and it's not null)
-                // You might also want to filter by isPublic, upcoming events, etc.
                 val result: QuerySnapshot = db.collection("Event")
-                    .whereNotEqualTo("location", null) // Basic filter: location field must exist and not be null
-                    // .whereEqualTo("isPublic", true) // Example: Only public events
-                    // .orderBy("startTime", Query.Direction.ASCENDING) // Example: Order by start time
-                    // .whereGreaterThanOrEqualTo("startTime", Timestamp.now()) // Example: Only upcoming events
+                    .whereNotEqualTo("location", null)
                     .get()
                     .await()
 
-                val events = result.toObjects(Event::class.java).filter {
-                    // Double check location is not null, though whereNotEqualTo should handle it.
-                    // Also, ensure the GeoPoint itself is valid if needed (e.g. not 0,0 if that's an invalid placeholder)
-                    it.location != null
-                }
-                _eventsForMap.value = events
-                Log.d("EventsMapVM", "Fetched ${events.size} events for map.")
+                val events = result.documents.mapNotNull { doc ->
+                    val event = doc.toObject(Event::class.java)
+                    event?.apply { id = doc.id }
+                }.filter { it.location != null }
+
+                allMapEvents.value = events
+                // Initially, all events are "visible" until the map provides bounds
+                _visibleEvents.value = events
+                Log.d("EventsMapVM", "Fetched ${events.size} total events for map.")
 
             } catch (e: Exception) {
                 Log.e("EventsMapVM", "Error fetching events for map", e)
                 _errorMessage.value = "Failed to load event locations: ${e.message}"
-                _eventsForMap.value = emptyList() // Clear events on error
             } finally {
                 _isLoading.value = false
             }
         }
     }
 
-    // Later, we might add functions here like:
-    // fun onMarkerClicked(eventId: String) { ... }
-    // fun refreshEvents() { fetchEventsWithLocations() }
+    /**
+     * Filters the master list of events to only those within the map's current visible bounds.
+     */
+    fun updateVisibleEvents(bounds: LatLngBounds) {
+        val visible = allMapEvents.value.filter { event ->
+            event.location?.let {
+                bounds.contains(LatLng(it.latitude, it.longitude))
+            } ?: false
+        }
+        _visibleEvents.value = visible
+        Log.d("EventsMapVM", "${visible.size} events are visible in the current viewport.")
+    }
+
+    /**
+     * Sets the currently selected event ID, which can be used to move the map.
+     */
+    fun onEventCardSelected(eventId: String?) {
+        _selectedEventId.value = eventId
+    }
+
+    /**
+     * Clears the event selection, e.g., when the user starts moving the map again.
+     */
+    fun clearEventSelection() {
+        _selectedEventId.value = null
+    }
 }

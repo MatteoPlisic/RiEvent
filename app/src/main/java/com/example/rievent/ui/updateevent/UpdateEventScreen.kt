@@ -182,6 +182,7 @@ fun UpdateEventScreen(
     Drawer(
         title = "Update Event",
         navController = navController,
+        gesturesEnabled = true,
         content = {
             if (isLoading && eventFromVm == null) {
                 Box(modifier = Modifier.fillMaxSize().padding(top = 70.dp), contentAlignment = Alignment.Center) {

@@ -1,8 +1,12 @@
 package com.example.rievent.ui.utils
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -17,6 +21,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
@@ -28,24 +33,45 @@ import kotlinx.coroutines.launch
 fun Drawer(
     title: String,
     navController: NavController,
+    gesturesEnabled: Boolean,
     content: @Composable (PaddingValues) -> Unit,
-    ) {
+) {
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
 
     ModalNavigationDrawer(
         drawerState = drawerState,
+        gesturesEnabled = gesturesEnabled,
         drawerContent = {
             ModalDrawerSheet {
-                Text("Menu", modifier = Modifier.padding(16.dp))
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Menu", style = androidx.compose.material3.MaterialTheme.typography.titleLarge)
+
+                    IconButton(onClick = {
+                        scope.launch { drawerState.close() }
+                    }) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Close Drawer"
+                        )
+                    }
+                }
+
+
                 NavigationDrawerItem(label = { Text("Home") }, selected = false, onClick = {
                     scope.launch { drawerState.close() }
+                    navController.navigate("events") // Assuming 'events' is your home screen
                 })
                 NavigationDrawerItem(label = { Text("Events") }, selected = false, onClick = {
                     scope.launch { drawerState.close() }
-
-                        navController.navigate("events")
-
+                    navController.navigate("events")
                 })
                 NavigationDrawerItem(label = { Text("Profile") }, selected = false, onClick = {
                     scope.launch { drawerState.close() }
@@ -65,11 +91,11 @@ fun Drawer(
                 })
                 NavigationDrawerItem(label = { Text("Log out") }, selected = false, onClick = {
                     scope.launch { drawerState.close() }
-                    navController.navigate("welcome")
                     FirebaseAuth.getInstance().signOut()
-
+                    navController.navigate("welcome") {
+                        popUpTo(navController.graph.id) { inclusive = true }
+                    }
                 })
-
             }
         }
     ) {

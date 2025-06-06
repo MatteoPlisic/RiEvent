@@ -1,8 +1,9 @@
 import com.google.firebase.Timestamp
+import com.google.firebase.firestore.Exclude
 import com.google.firebase.firestore.GeoPoint
 
 data class Event(
-    val id: String? = "",
+    @get:Exclude @set:Exclude var id: String? = null,
     val name: String = "",
     val description: String = "",
     val category: String = "",

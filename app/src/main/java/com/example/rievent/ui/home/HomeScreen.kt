@@ -25,7 +25,8 @@ fun HomeScreen(
     ) {
     Drawer(
         title = "Home",
-        navController = navController
+        navController = navController,
+        gesturesEnabled = true,
 
     ) { innerPadding ->
         Box(

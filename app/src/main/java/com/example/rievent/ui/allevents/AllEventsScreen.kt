@@ -166,6 +166,7 @@ fun AllEventsScreen(
 
     Drawer(
         title = "Home",
+        gesturesEnabled = true,
         navController = navController
     ) {
         Column(

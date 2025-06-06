@@ -1,148 +1,181 @@
-package com.example.rievent.ui.map // Ensure this is the correct package for your map screen
+package com.example.rievent.ui.map
 
-import android.util.Log
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
-import com.example.rievent.ui.utils.Drawer // Assuming you use your Drawer here
+import com.example.rievent.ui.allevents.AllEventCard
+import com.example.rievent.ui.utils.Drawer
+import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.compose.GoogleMap
-import com.google.maps.android.compose.MapProperties
 import com.google.maps.android.compose.MapUiSettings
 import com.google.maps.android.compose.Marker
 import com.google.maps.android.compose.MarkerState
 import com.google.maps.android.compose.rememberCameraPositionState
 
-// ViewModel for this screen
-// import com.example.rievent.ui.map.EventsMapViewModel // Already in the package
-
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EventsMapScreen(
-    // ViewModel is instantiated here. If it had constructor args, you'd use a factory.
-    viewModel: EventsMapViewModel = viewModel(),
+    viewModel: MapViewModel = viewModel(),
     navController: NavController,
 ) {
-    val eventsForMap by viewModel.eventsForMap.collectAsState()
+    // Collect all necessary states from the ViewModel
+    val allMapEvents by viewModel.allMapEvents.collectAsState() // Renamed for clarity
+    val visibleEvents by viewModel.visibleEvents.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val errorMessage by viewModel.errorMessage.collectAsState()
+    val selectedEventId by viewModel.selectedEventId.collectAsState()
 
-    // Initial camera position (e.g., centered on Primorje-Gorski Kotar County if that's the default focus)
-    // You'll need to adjust these coordinates and zoom.
-    // These are very rough coordinates for PGŽ - Rijeka area.
-    val primorjeGorskiKotarCenter = LatLng(45.3271, 14.4422) // Rijeka as an example center
+    val primorjeGorskiKotarCenter = LatLng(45.3271, 14.4422)
     val cameraPositionState = rememberCameraPositionState {
-        position = CameraPosition.fromLatLngZoom(primorjeGorskiKotarCenter, 9f) // Zoom level 9f is more regional
+        position = CameraPosition.fromLatLngZoom(primorjeGorskiKotarCenter, 9f)
     }
 
-    val uiSettings by remember {
-        mutableStateOf(
-            MapUiSettings(
-                zoomControlsEnabled = true,
-                myLocationButtonEnabled = false, // Requires location permission and setup
-                mapToolbarEnabled = true
-            )
-        )
+    val coroutineScope = rememberCoroutineScope()
+    val listState = rememberLazyListState()
+
+    // --- SYNCHRONIZATION LOGIC ---
+
+    // 1. Update the visible events list when the map stops moving
+    LaunchedEffect(cameraPositionState.isMoving) {
+        if (!cameraPositionState.isMoving) {
+            // The map has settled, get its visible boundaries
+            cameraPositionState.projection?.visibleRegion?.latLngBounds?.let { bounds ->
+                viewModel.updateVisibleEvents(bounds)
+            }
+        } else {
+            // User is moving the map, clear any specific event selection
+            viewModel.clearEventSelection()
+        }
     }
 
-    val properties by remember {
-        mutableStateOf(MapProperties(isMyLocationEnabled = false)) // Requires location permission
+    // 2. Move the map when an event card is selected from the list
+    LaunchedEffect(selectedEventId) {
+        selectedEventId?.let { eventId ->
+            val event = allMapEvents.find { it.id == eventId }
+            event?.location?.let { geoPoint ->
+                val position = LatLng(geoPoint.latitude, geoPoint.longitude)
+                cameraPositionState.animate(
+                    update = CameraUpdateFactory.newLatLngZoom(position, 15f), // Zoom in closer
+                    durationMs = 1000
+                )
+            }
+        }
     }
+
 
     Drawer(
-        // Using your Drawer composable
         title = "Event Map",
         navController = navController,
-        { drawerPadding -> // Assuming your Drawer provides padding for its content
+        gesturesEnabled = false,
+    ) { drawerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(drawerPadding)
+        ) {
+            // --- MAP COMPONENT ---
             Box(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(drawerPadding) // Apply padding from Drawer
+                    .fillMaxWidth()
+                    .weight(1f) // Map takes the top half
             ) {
                 GoogleMap(
                     modifier = Modifier.fillMaxSize(),
                     cameraPositionState = cameraPositionState,
-                    properties = properties,
-                    uiSettings = uiSettings,
-                    onMapLoaded = {
-                        Log.d("EventsMapScreen", "Map has loaded.")
-                        // Consider moving camera to fit markers if events are already loaded
-                        // and if you have multiple markers.
-                    },
-                    onPOIClick = { poi ->
-                        Log.d("EventsMapScreen", "POI Clicked: ${poi.name}")
-                    }
+                    uiSettings = MapUiSettings(zoomControlsEnabled = true)
                 ) {
-                    eventsForMap.forEach { event ->
+                    allMapEvents.forEach { event ->
                         event.location?.let { geoPoint ->
-                            // Ensure event.id is not null, provide a fallback or handle error
-                            val eventId = event.id ?: "unknown_event_${event.name}"
                             Marker(
-                                state = MarkerState(
-                                    position = LatLng(
-                                        geoPoint.latitude,
-                                        geoPoint.longitude
-                                    )
-                                ),
+                                state = MarkerState(position = LatLng(geoPoint.latitude, geoPoint.longitude)),
                                 title = event.name,
-                                snippet = event.category, // Or a short description
+                                snippet = event.category,
                                 onInfoWindowClick = {
-                                    Log.d(
-                                        "EventsMapScreen",
-                                        "Info window clicked for event ID: $eventId"
-                                    )
-                                    navController.navigate("singleEvent/$eventId")
+                                    event.id?.let { navController.navigate("singleEvent/$it") }
                                 },
-                                onClick = { marker ->
-                                    Log.d("EventsMapScreen", "Marker clicked: ${event.name}")
-                                    // marker.showInfoWindow() // Default behavior usually shows it.
-                                    false // Return false to allow default behavior (show info window)
+                                // Optional: When marker is tapped, select it in the ViewModel
+                                onClick = {
+                                    viewModel.onEventCardSelected(event.id)
+                                    false // Allow default behavior
                                 }
                             )
                         }
                     }
                 }
+            }
 
+            // --- LIST COMPONENT ---
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f), // List takes the bottom half
+                contentAlignment = Alignment.Center
+            ) {
                 if (isLoading) {
-                    CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-                }
-
-                errorMessage?.let { error ->
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(16.dp), // Padding for the error message box
-                        contentAlignment = Alignment.Center
+                    CircularProgressIndicator()
+                } else if (errorMessage != null) {
+                    Text(
+                        text = "Error: $errorMessage",
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(16.dp)
+                    )
+                } else if (visibleEvents.isEmpty()) {
+                    Text(
+                        "No events found in this area.",
+                        modifier = Modifier.padding(16.dp)
+                    )
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        state = listState,
+                        contentPadding = PaddingValues(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Text(
-                            text = "Error loading map data: $error", // More specific error context
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodyLarge,
-                            modifier = Modifier.padding(16.dp) // Inner padding for text
-                        )
+                        items(visibleEvents, key = { it.id!! }) { event ->
+
+                            Box(
+                                modifier = Modifier.border(
+                                    width = if (event.id == selectedEventId) 2.dp else 0.dp,
+                                    color = if (event.id == selectedEventId) MaterialTheme.colorScheme.primary else Color.Transparent
+                                )
+                            ) {
+
+                                AllEventCard(
+                                    event = event,
+                                    allEventsViewModel = viewModel(),
+                                    onCardClick = {eventId ->
+                                        navController.navigate("singleEvent/$eventId") }
+                                )
+                            }
+                        }
                     }
                 }
             }
-        },
-
-    )
-    // Add onNavigateToMap to your Drawer's parameters if it has a map item
-    // For example, if your Drawer's content lambda defines menu items, one could call onNavigateToMap
-
+        }
+    }
 }
