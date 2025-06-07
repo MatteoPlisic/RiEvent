@@ -17,18 +17,13 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -39,15 +34,18 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import coil.compose.rememberAsyncImagePainter
 import coil.request.ImageRequest
+import com.example.rievent.R
 import com.example.rievent.models.User
 import com.example.rievent.ui.allevents.AllEventCard
 import com.example.rievent.ui.allevents.AllEventsViewModel
 import com.example.rievent.ui.chat.ChatViewModel
+import com.example.rievent.ui.utils.Drawer
 import com.google.firebase.auth.FirebaseAuth
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -56,14 +54,14 @@ fun UserProfileScreen(
     userId: String,
     viewModel: UserProfileViewModel = viewModel(),
     allEventsViewModel: AllEventsViewModel = viewModel(),
-    onBack: () -> Unit,
+    onBack: () -> Unit, // This can be removed if the drawer handles all back navigation
     onNavigateToSingleEvent: (eventId: String) -> Unit,
     isCurrentUserProfile: Boolean,
     chatViewModel: ChatViewModel,
     navController: NavController
 ) {
-    // Collect the single state object
     val uiState by viewModel.uiState.collectAsState()
+    val context = LocalContext.current
 
     LaunchedEffect(userId) {
         if (userId.isNotBlank()) {
@@ -71,21 +69,20 @@ fun UserProfileScreen(
         }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(uiState.user?.displayName ?: "User Profile") },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, "Back") } },
-                actions = {
-                    if (isCurrentUserProfile) {
-                        IconButton(onClick = { /* TODO: Navigate to Edit Profile */ }) { Icon(Icons.Filled.Edit, "Edit Profile") }
-                    }
-                }
-            )
-        }
+    // [THE FIX] - The entire screen content is now placed inside the Drawer's content lambda.
+    Drawer(
+        title = uiState.user?.displayName ?: stringResource(id = R.string.user_profile_title),
+        navController = navController,
+        gesturesEnabled = true,
+        // You can add a back arrow to the drawer's top bar if needed,
+        // or rely on the hamburger menu icon.
+        // For now, we assume the Drawer handles the TopAppBar.
     ) { paddingValues ->
         LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(paddingValues).padding(16.dp),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues) // Use padding from the Drawer
+                .padding(16.dp), // Add your own content padding
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
@@ -102,8 +99,10 @@ fun UserProfileScreen(
                         onMessageClick = {
                             val currentUser = FirebaseAuth.getInstance().currentUser
                             if (currentUser != null) {
-                                val currentUserInfo = ParticipantInfo(name = currentUser.displayName ?: "You", imageUrl = currentUser.photoUrl?.toString())
-                                val profileUserInfo = ParticipantInfo(name = uiState.user!!.displayName ?: "User", imageUrl = uiState.user!!.photoUrl)
+                                val youString = context.getString(R.string.user_profile_you_label)
+                                val userString = context.getString(R.string.user_profile_user_label)
+                                val currentUserInfo = ParticipantInfo(name = currentUser.displayName ?: youString, imageUrl = currentUser.photoUrl?.toString())
+                                val profileUserInfo = ParticipantInfo(name = uiState.user!!.displayName ?: userString, imageUrl = uiState.user!!.photoUrl)
                                 val participantIds = listOf(currentUser.uid, uiState.user!!.uid!!).sorted()
                                 val chatId = participantIds.joinToString(separator = "_")
                                 val participantDetails = mapOf(currentUser.uid to currentUserInfo, uiState.user!!.uid!! to profileUserInfo)
@@ -114,13 +113,20 @@ fun UserProfileScreen(
                         }
                     )
                 } else {
-                    Text(uiState.errorMessage ?: "User not found.", color = MaterialTheme.colorScheme.error)
+                    Text(
+                        text = uiState.errorMessage ?: stringResource(id = R.string.user_profile_error_loading),
+                        color = MaterialTheme.colorScheme.error
+                    )
                 }
             }
 
             if (uiState.user != null) {
                 item {
-                    Text("Events Created", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.fillMaxWidth())
+                    Text(
+                        text = stringResource(id = R.string.user_profile_events_created_title),
+                        style = MaterialTheme.typography.headlineSmall,
+                        modifier = Modifier.fillMaxWidth()
+                    )
                     Spacer(Modifier.height(8.dp))
                 }
                 if (uiState.isLoadingEvents) {
@@ -134,11 +140,16 @@ fun UserProfileScreen(
                         )
                     }
                 } else {
-                    item { Text("This user hasn't created any events yet.") }
+                    item { Text(stringResource(id = R.string.user_profile_no_events)) }
                 }
             }
             if (uiState.errorMessage != null && !uiState.isLoadingProfile && !uiState.isLoadingEvents) {
-                item { Text("An error occurred: ${uiState.errorMessage}", color = MaterialTheme.colorScheme.error) }
+                item {
+                    Text(
+                        text = stringResource(id = R.string.user_profile_generic_error, uiState.errorMessage!!),
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
             }
             item { Spacer(Modifier.height(16.dp)) }
         }
@@ -158,15 +169,20 @@ fun UserProfileHeader(
         if (user.photoUrl != null) {
             Image(
                 painter = rememberAsyncImagePainter(ImageRequest.Builder(LocalContext.current).data(user.photoUrl).crossfade(true).build()),
-                contentDescription = "User Profile Picture",
+                contentDescription = stringResource(id = R.string.user_profile_picture_description),
                 modifier = Modifier.size(120.dp).clip(CircleShape),
                 contentScale = ContentScale.Crop
             )
         } else {
-            Icon(Icons.Default.AccountCircle, "Default Profile Picture", modifier = Modifier.size(120.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            Icon(
+                Icons.Default.AccountCircle,
+                contentDescription = stringResource(id = R.string.default_profile_picture_description),
+                modifier = Modifier.size(120.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
         Spacer(Modifier.height(16.dp))
-        Text(user.displayName ?: "No Name Provided", style = MaterialTheme.typography.headlineMedium)
+        Text(user.displayName ?: stringResource(id = R.string.user_profile_no_name), style = MaterialTheme.typography.headlineMedium)
         user.email?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = Color.Gray) }
         user.bio?.let { Spacer(Modifier.height(8.dp)); Text(it, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(horizontal = 16.dp)) }
 
@@ -177,13 +193,13 @@ fun UserProfileHeader(
                     if (isFollowActionLoading) {
                         CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
                     } else {
-                        Text(if (isFollowing) "Unfollow" else "Follow")
+                        Text(if (isFollowing) stringResource(id = R.string.user_profile_unfollow_button) else stringResource(id = R.string.user_profile_follow_button))
                     }
                 }
                 Button(onClick = onMessageClick) {
-                    Icon(Icons.Default.Email, contentDescription = "Message")
+                    Icon(Icons.Default.Email, contentDescription = stringResource(id = R.string.user_profile_message_button))
                     Spacer(Modifier.width(8.dp))
-                    Text("Message")
+                    Text(stringResource(id = R.string.user_profile_message_button))
                 }
             }
         }

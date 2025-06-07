@@ -8,13 +8,180 @@
     <string name="register_button">Register</string>
     <string name="register_title">Create an account</string>
     <string name="register_description">Create an account to get started</string>
-    <string name="passowrd">Password</string>
+    <string name="password">Password</string> <!-- Note: You have a typo here, it should be "password" -->
     <string name="email">Email address</string>
     <string name="home_text">Welcome to RiEvent</string>
+
+    <!-- Notification Channels -->
     <string name="default_notification_channel_id">rievent_default_channel</string>
     <string name="default_notification_channel_name">General Notifications</string>
     <string name="default_notification_channel_description">Default channel for app notifications</string>
     <string name="message_notification_channel_id" translatable="false">messages_channel</string>
     <string name="message_notification_channel_name">Direct Messages</string>
     <string name="message_notification_channel_description">Notifications for new direct messages.</string>
+
+    <!-- Strings for WelcomeScreen -->
+    <string name="welcome_menu_title">Menu</string>
+    <string name="welcome_home_button">Home</string>
+    <string name="welcome_google_login_button">Login with Google</string>
+    <string name="welcome_app_description">RiEvent is an app for public events in the greater Rijeka area. Join us to find events near you.</string>
+
+
+    <!-- Strings for UserProfileScreen -->
+    <string name="user_profile_title">User Profile</string>
+    <string name="back_button_description">Back</string>
+    <string name="edit_profile_button_description">Edit Profile</string>
+    <string name="user_profile_picture_description">User Profile Picture</string>
+    <string name="default_profile_picture_description">Default Profile Picture</string>
+    <string name="user_profile_no_name">No Name Provided</string>
+    <string name="user_profile_unfollow_button">Unfollow</string>
+    <string name="user_profile_follow_button">Follow</string>
+    <string name="user_profile_message_button">Message</string>
+    <string name="user_profile_events_created_title">Events Created</string>
+    <string name="user_profile_no_events">This user hasn\'t created any events yet.</string>
+    <string name="user_profile_error_loading">User not found.</string>
+    <string name="user_profile_generic_error">An error occurred: %1$s</string>
+    <string name="user_profile_you_label">You</string>
+    <string name="user_profile_user_label">User</string>
+
+
+    <!-- Strings for Create/Update Event Screens -->
+    <string name="update_event_title">Update Event</string>
+    <string name="event_name_label">Event Name</string>
+    <string name="description_label">Description</string>
+    <string name="category_label">Category</string>
+    <string name="address_label">Address</string>
+    <string name="clear_address_description">Clear address</string>
+    <string name="new_location_selected">New Location Selected: Lat: %1$s, Lng: %2$s</string>
+    <string name="event_image_label">Event Image</string>
+    <string name="event_image_description">Event image</string>
+    <string name="add_image_placeholder_description">Add Image Placeholder</string>
+    <string name="remove_image_button">Remove Image</string>
+    <string name="start_date_label">Start Date</string>
+    <string name="start_time_label">Start Time</string>
+    <string name="end_date_label">End Date</string>
+    <string name="end_time_label">End Time</string>
+    <string name="make_event_public_label">Make Event Public</string>
+    <string name="updating_button_text">Updating...</string>
+    <string name="update_event_button">Update Event</string>
+    <string name="event_load_error">Event could not be loaded.</string>
+    <string name="generic_error_prefix">Error: %1$s</string>
+
+
+    <!-- Strings for SingleEventScreen -->
+    <string name="single_event_title">Event Details</string>
+    <string name="single_event_error_not_found">Event not found.</string>
+    <string name="single_event_by_label">By: %1$s</string>
+    <string name="single_event_view_owner_profile_description">View Owner Profile</string>
+    <string name="single_event_starts_label">Starts: %1$s</string>
+    <string name="single_event_ends_label">Ends: %1$s</string>
+    <string name="single_event_category_label">Category: %1$s</string>
+    <string name="single_event_address_label">Address: %1$s</string>
+    <string name="rsvp_title">RSVP</string>
+    <string name="rsvp_coming_button">Coming (%1$d)</string>
+    <string name="rsvp_maybe_button">Maybe (%1$d)</string>
+    <string name="rsvp_not_coming_button">Not Coming (%1$d)</string>
+    <string name="ratings_title">Ratings</string>
+    <string name="ratings_average_description">Average Rating</string>
+    <string name="ratings_count_label">(%1$d ratings)</string>
+    <string name="ratings_update_button">Update Your Rating</string>
+    <string name="ratings_rate_button">Rate this Event</string>
+    <string name="ratings_dialog_title">Rate this Event</string>
+    <string name="ratings_dialog_your_rating">Your rating: %1$.1f</string>
+    <string name="dialog_submit_button">Submit</string>
+    <string name="dialog_cancel_button">Cancel</string>
+    <string name="comments_title">Comments</string>
+    <string name="comments_add_label">Add a comment...</string>
+    <string name="comments_post_description">Post Comment</string>
+    <string name="comments_no_comments">No comments yet. Be the first!</string>
+    <string name="comment_item_profile_picture_description">%1$s\'s profile picture</string>
+    <string name="comment_item_default_avatar_description">Default user avatar</string>
+
+    <!-- Strings for SearchUserScreen -->
+    <string name="search_user_title">Start a New Chat</string>
+    <string name="search_user_label">Search for a user...</string>
+    <string name="search_user_profile_picture_description">Profile Picture</string>
+
+
+    <!-- Strings for MyEventsScreen -->
+    <string name="my_events_title">My Events</string>
+    <string name="my_events_no_events">You have not created any events.</string>
+    <string name="my_events_delete_dialog_title">Delete Event</string>
+    <string name="my_events_delete_dialog_text">Are you sure you want to delete \"%1$s\"?</string>
+    <string name="my_events_delete_button">Delete</string>
+    <string name="my_events_edit_button">Edit</string>
+    <string name="my_events_edit_icon_description">Edit Event</string>
+    <string name="my_events_delete_icon_description">Delete Event</string>
+
+    <!-- Strings for MapScreen -->
+    <string name="map_screen_title">Event Map</string>
+    <string name="map_screen_any_date">Any Date</string>
+    <string name="map_screen_filter_by_date">Filter by Date</string>
+    <string name="map_screen_clear_date_filter">Clear Date Filter</string>
+    <string name="map_screen_select_date">Select Date</string>
+    <string name="map_screen_no_events_for_date">No events found for this date.</string>
+    <string name="map_screen_no_events_in_area">No events found in this map area.</string>
+
+
+    <!-- Strings for HomeScreen -->
+    <string name="home_screen_welcome_title">Welcome Home!</string>
+    <string name="home_screen_logged_in_message">You\'re now logged in.</string>
+    <string name="home_screen_logout_button">Log out</string>
+
+
+    <!-- Strings for CreateEventScreen -->
+    <string name="create_event_title">Create Event</string>
+    <string name="selected_event_image_description">Selected event image</string>
+    <string name="tap_to_select_image">Tap to select image</string>
+    <string name="creating_button_text">Creating...</string>
+    <string name="create_event_button">Create Event</string>
+
+    <!-- Strings for ChatListScreen -->
+    <string name="chat_list_title">Messages</string>
+    <string name="chat_list_no_messages">You have no messages yet.</string>
+    <string name="chat_list_unknown_user">Unknown User</string>
+    <string name="chat_list_no_messages_in_chat">No messages yet.</string>
+    <string name="chat_list_profile_icon_description">Profile</string>
+
+
+    <!-- Strings for ChatScreen (Conversation) -->
+    <string name="chat_screen_title">Chat</string>
+    <string name="chat_screen_message_placeholder">Type a message...</string>
+    <string name="chat_screen_send_button_description">Send</string>
+
+    <!-- Strings for AllEventsScreen -->
+    <string name="all_events_title">All Events</string>
+    <string name="all_events_search_label">Search Event/User</string>
+    <string name="all_events_search_mode_description">Search Mode</string>
+    <string name="all_events_filter_by_event">By Event</string>
+    <string name="all_events_filter_by_user">By User</string>
+    <string name="all_events_distance_label">Distance: %1$s</string>
+    <string name="all_events_distance_any">Any</string>
+    <string name="all_events_distance_within_km">within %.0f km</string>
+    <string name="all_events_no_results">No events found matching your criteria.</string>
+    <string name="all_events_no_public_events">No public events available at the moment.</string>
+    <string name="all_events_card_coming_button">Coming\n%1$d</string>
+    <string name="all_events_card_maybe_button">Maybe\n%1$d</string>
+    <string name="all_events_card_not_coming_button">Not Coming\n%1$d</string>
+    <string name="all_events_card_icon_description">Event Icon</string>
+    <string name="all_events_n_a">N/A</string>
+
+
+
+    <!-- Strings for RegisterScreen -->
+    <string name="register_profile_picture_preview">Profile Picture Preview</string>
+    <string name="register_default_profile_picture">Default Profile Picture</string>
+    <string name="register_add_photo">Add Photo</string>
+    <string name="register_first_name_label">First Name</string>
+    <string name="register_last_name_label">Last Name</string>
+    <string name="register_password_label">Password (min. 6 characters)</string>
+    <string name="register_confirm_password_label">Confirm Password</string>
+    <string name="register_dob_label">Date of Birth</string>
+    <string name="register_phone_label">Phone Number (Optional)</string>
+    <string name="register_gender_label">Gender:</string>
+    <string name="register_gender_male">Male</string>
+    <string name="register_gender_female">Female</string>
+    <string name="register_terms_and_conditions">I accept the Terms and Conditions</string>
+    <string name="register_privacy_policy">I accept the Privacy Policy</string>
+    <string name="register_create_account_button">Create Account</string>
 </resources>

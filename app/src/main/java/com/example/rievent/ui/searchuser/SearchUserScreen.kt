@@ -1,6 +1,5 @@
 package com.example.rievent.ui.chat
 
-
 import ParticipantInfo
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -36,11 +35,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.example.rievent.R
 import com.example.rievent.models.User
 import com.google.firebase.auth.FirebaseAuth
 
@@ -49,20 +50,18 @@ import com.google.firebase.auth.FirebaseAuth
 fun SearchUserScreen(
     navController: NavController,
     findUserViewModel: SearchUserViewModel = viewModel(),
-    chatViewModel: ChatViewModel // This is the shared ViewModel for chat logic
+    chatViewModel: ChatViewModel
 ) {
-    // Collect the single state object from the ViewModel.
     val uiState by findUserViewModel.uiState.collectAsState()
-
     val currentUser = FirebaseAuth.getInstance().currentUser
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Start a New Chat") },
+                title = { Text(stringResource(id = R.string.search_user_title)) },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.Default.ArrowBack, contentDescription = stringResource(id = R.string.back_button_description))
                     }
                 }
             )
@@ -73,18 +72,16 @@ fun SearchUserScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            // Search Bar - Reads from uiState, sends events to ViewModel
             OutlinedTextField(
                 value = uiState.searchQuery,
                 onValueChange = { findUserViewModel.onSearchQueryChanged(it) },
-                label = { Text("Search for a user...") },
+                label = { Text(stringResource(id = R.string.search_user_label)) },
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(16.dp),
                 singleLine = true
             )
 
-            // Results List
             if (uiState.isLoading) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator()
@@ -93,34 +90,23 @@ fun SearchUserScreen(
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(uiState.errorMessage!!, color = MaterialTheme.colorScheme.error)
                 }
-            }
-            else {
+            } else {
                 LazyColumn(modifier = Modifier.fillMaxSize()) {
                     items(uiState.searchResults, key = { it.uid!! }) { user ->
-                        // Don't show the current user in their own search results
                         if (user.uid != currentUser?.uid) {
                             UserSearchResultItem(
                                 user = user,
                                 onClick = {
                                     if (currentUser != null) {
-                                        // 1. Prepare participant info for the new chat
                                         val currentUserInfo = ParticipantInfo(name = currentUser.displayName ?: "", imageUrl = currentUser.photoUrl?.toString())
                                         val searchedUserInfo = ParticipantInfo(name = user.displayName ?: "", imageUrl = user.photoUrl)
-
-                                        // 2. Create deterministic chatId by sorting UIDs
                                         val participantIds = listOf(currentUser.uid, user.uid).sorted()
                                         val chatId = participantIds.joinToString(separator = "_")
-
-                                        // 3. Prepare the details map needed to create the chat document
                                         val participantDetails = mapOf(
                                             currentUser.uid to currentUserInfo,
                                             user.uid to searchedUserInfo
                                         )
-
-                                        // 4. Pass the details to the shared ChatViewModel
                                         chatViewModel.prepareForNewChat(participantDetails)
-
-                                        // 5. Navigate to the conversation screen
                                         navController.navigate("conversation/$chatId")
                                     }
                                 }
@@ -151,13 +137,13 @@ fun UserSearchResultItem(user: User, onClick: () -> Unit) {
                 .build(),
             placeholder = placeholderPainter,
             error = placeholderPainter,
-            contentDescription = "Profile Picture",
+            contentDescription = stringResource(id = R.string.search_user_profile_picture_description),
             modifier = Modifier
                 .size(48.dp)
                 .clip(CircleShape),
             contentScale = ContentScale.Crop
         )
         Spacer(Modifier.width(16.dp))
-        Text(user.displayName ?: "Unknown User", style = MaterialTheme.typography.bodyLarge)
+        Text(user.displayName ?: stringResource(id = R.string.user_profile_no_name), style = MaterialTheme.typography.bodyLarge)
     }
 }

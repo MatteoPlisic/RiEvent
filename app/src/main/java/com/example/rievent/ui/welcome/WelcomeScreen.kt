@@ -10,25 +10,27 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Button
+import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.ModalDrawerSheet
+import androidx.compose.material3.ModalNavigationDrawer
+import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.rievent.R
-import androidx.compose.ui.text.font.FontStyle
 import androidx.navigation.NavController
-import androidx.compose.material3.*
-import androidx.compose.runtime.rememberCoroutineScope
+import com.example.rievent.R
 
 @Composable
 fun WelcomeScreen(
@@ -39,8 +41,7 @@ fun WelcomeScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val drawerState = rememberDrawerState(DrawerValue.Closed)
-    val scope = rememberCoroutineScope()
-
+    val scope = rememberCoroutineScope() // This scope is not used, can be removed if not needed elsewhere.
 
     LaunchedEffect(uiState.success) {
         if (uiState.success) {
@@ -55,28 +56,33 @@ fun WelcomeScreen(
         drawerState = drawerState,
         drawerContent = {
             ModalDrawerSheet {
-                Text("Menu", modifier = Modifier.padding(16.dp), fontWeight = FontWeight.Bold)
+                Text(
+                    text = stringResource(id = R.string.welcome_menu_title),
+                    modifier = Modifier.padding(16.dp),
+                    fontWeight = FontWeight.Bold
+                )
                 NavigationDrawerItem(
-                    label = { Text("Home") },
+                    label = { Text(stringResource(id = R.string.welcome_home_button)) },
                     selected = false,
                     onClick = {
                         navController.navigate("home")
                     }
                 )
                 NavigationDrawerItem(
-                    label = { Text("Login") },
+                    // Reusing existing string
+                    label = { Text(stringResource(id = R.string.login_button)) },
                     selected = false,
                     onClick = onLoginClick
                 )
                 NavigationDrawerItem(
-                    label = { Text("Register") },
+                    // Reusing existing string
+                    label = { Text(stringResource(id = R.string.register_button)) },
                     selected = false,
                     onClick = onRegisterClick
                 )
             }
         }
     ) {
-        // Your original WelcomeScreen UI
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -102,21 +108,23 @@ fun WelcomeScreen(
 
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 Button(onClick = onLoginClick, modifier = Modifier.fillMaxWidth()) {
-                    Text(text = "Login")
+                    // Reusing existing string
+                    Text(text = stringResource(id = R.string.login_button))
                 }
                 Button(onClick = onRegisterClick, modifier = Modifier.fillMaxWidth()) {
-                    Text(text = "Register")
+                    // Reusing existing string
+                    Text(text = stringResource(id = R.string.register_button))
                 }
                 Button(
                     onClick = { viewModel.signInWithGoogle() },
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text(text = "Login with Google")
+                    Text(text = stringResource(id = R.string.welcome_google_login_button))
                 }
             }
 
             Text(
-                text = "RiEvent is an app for public events in greater Rijeka area. Join us to find events near you",
+                text = stringResource(id = R.string.welcome_app_description),
                 fontSize = 14.sp,
                 fontStyle = FontStyle.Italic,
                 modifier = Modifier.padding(top = 250.dp)

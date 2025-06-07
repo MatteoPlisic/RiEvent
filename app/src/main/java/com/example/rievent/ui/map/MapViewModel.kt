@@ -70,6 +70,7 @@ class MapViewModel : ViewModel() {
             try {
                 val result = db.collection("Event")
                     .whereNotEqualTo("location", null)
+                    .whereGreaterThan("startTime", Timestamp.now())
                     .get().await()
                 val events = result.documents.mapNotNull { doc ->
                     doc.toObject(Event::class.java)?.apply { id = doc.id }
@@ -103,7 +104,7 @@ class MapViewModel : ViewModel() {
 
     fun onMapMoved(bounds: LatLngBounds?) {
         if (bounds == null) {
-            // Reset visible events to all date-filtered events
+
             _uiState.update { it.copy(visibleEvents = it.allMapEvents) }
             return
         }

@@ -51,11 +51,13 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import coil.compose.rememberAsyncImagePainter
+import com.example.rievent.R
 import com.example.rievent.ui.utils.DatePickerField
 import com.example.rievent.ui.utils.Drawer
 import com.example.rievent.ui.utils.TimePickerField
@@ -69,29 +71,24 @@ fun CreateEventScreen(
     val context = LocalContext.current
     val factory = remember { CreateEventViewModelFactory(context.applicationContext as Application) }
     val viewModel: CreateEventViewModel = viewModel(factory = factory)
-
-    // Collect the single state object.
     val uiState by viewModel.uiState.collectAsState()
-
     val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent(),
         onResult = { uri: Uri? -> viewModel.onImageSelected(uri) }
     )
-
     val categoryOptions = listOf("Sports", "Academic", "Business", "Culture", "Concert", "Quizz", "Party")
     val focusManager = LocalFocusManager.current
 
-    // This effect listens for the success signal to navigate away.
     LaunchedEffect(uiState.creationSuccess) {
         if (uiState.creationSuccess) {
-            onCreated() // Call the navigation callback
-            viewModel.eventCreationNavigated() // Tell the ViewModel to reset its state
+            onCreated()
+            viewModel.eventCreationNavigated()
         }
     }
 
-    Drawer(title = "Create Event", navController = navController, gesturesEnabled = true) {
+    Drawer(title = stringResource(id = R.string.create_event_title), navController = navController, gesturesEnabled = true) {
         Box(
-            modifier = Modifier.fillMaxSize().padding(top = 70.dp, bottom = 16.dp, start = 16.dp, end = 16.dp),
+            modifier = Modifier.fillMaxSize().padding(top = 70.dp, bottom = 56.dp, start = 16.dp, end = 16.dp),
             contentAlignment = Alignment.TopCenter
         ) {
             LazyColumn(
@@ -99,13 +96,14 @@ fun CreateEventScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                item { OutlinedTextField(value = uiState.name, onValueChange = viewModel::onNameChange, label = { Text("Event Name") }, modifier = Modifier.fillMaxWidth()) }
-                item { OutlinedTextField(value = uiState.description, onValueChange = viewModel::onDescriptionChange, label = { Text("Description") }, modifier = Modifier.fillMaxWidth(), minLines = 3) }
+                item { Spacer(modifier = Modifier.height(15.dp))}
+                item { OutlinedTextField(value = uiState.name, onValueChange = viewModel::onNameChange, label = { Text(stringResource(id = R.string.event_name_label)) }, modifier = Modifier.fillMaxWidth()) }
+                item { OutlinedTextField(value = uiState.description, onValueChange = viewModel::onDescriptionChange, label = { Text(stringResource(id = R.string.description_label)) }, modifier = Modifier.fillMaxWidth(), minLines = 3) }
                 item {
                     ExposedDropdownMenuBox(expanded = uiState.isCategoryMenuExpanded, onExpandedChange = { viewModel.onCategoryMenuToggled(it) }, modifier = Modifier.fillMaxWidth()) {
                         OutlinedTextField(
                             value = uiState.category, onValueChange = {}, readOnly = true,
-                            label = { Text("Category") },
+                            label = { Text(stringResource(id = R.string.category_label)) },
                             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(uiState.isCategoryMenuExpanded) },
                             modifier = Modifier.menuAnchor().fillMaxWidth()
                         )
@@ -121,14 +119,14 @@ fun CreateEventScreen(
                         OutlinedTextField(
                             value = uiState.addressInput,
                             onValueChange = { viewModel.onAddressInputChange(it) },
-                            label = { Text("Address") },
+                            label = { Text(stringResource(id = R.string.address_label)) },
                             modifier = Modifier.fillMaxWidth().onFocusChanged { viewModel.onAddressFocusChanged(it.isFocused) },
                             trailingIcon = {
                                 if (uiState.addressInput.isNotEmpty()) {
                                     IconButton(onClick = {
                                         viewModel.onClearAddress()
                                         focusManager.clearFocus()
-                                    }) { Icon(Icons.Filled.Clear, "Clear address") }
+                                    }) { Icon(Icons.Filled.Clear, stringResource(id = R.string.clear_address_description)) }
                                 }
                             },
                             singleLine = true
@@ -154,7 +152,7 @@ fun CreateEventScreen(
                         }
                         if (uiState.selectedPlace != null) {
                             Text(
-                                "Location: Lat: ${uiState.selectedPlace!!.latLng?.latitude}, Lng: ${uiState.selectedPlace!!.latLng?.longitude}",
+                                text = stringResource(id = R.string.new_location_selected, uiState.selectedPlace!!.latLng?.latitude.toString(), uiState.selectedPlace!!.latLng?.longitude.toString()),
                                 style = MaterialTheme.typography.bodySmall, fontStyle = FontStyle.Italic,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp)
                             )
@@ -168,29 +166,30 @@ fun CreateEventScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         if (uiState.imageUri != null) {
-                            Image(painter = rememberAsyncImagePainter(model = uiState.imageUri), contentDescription = "Selected event image", modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                            Image(painter = rememberAsyncImagePainter(model = uiState.imageUri), contentDescription = stringResource(id = R.string.selected_event_image_description), modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                         } else {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Icon(imageVector = Icons.Default.AddPhotoAlternate, contentDescription = "Add Image Placeholder", modifier = Modifier.size(48.dp))
-                                Text("Tap to select image")
+                                Icon(imageVector = Icons.Default.AddPhotoAlternate, contentDescription = stringResource(id = R.string.add_image_placeholder_description), modifier = Modifier.size(48.dp))
+                                Text(stringResource(id = R.string.tap_to_select_image))
                             }
                         }
                     }
                 }
-                item { DatePickerField(label = "Start Date", value = uiState.startDate, onDateSelected = viewModel::onStartDateChange, onTextChange = viewModel::onStartDateChange) }
-                item { TimePickerField(label = "Start Time", value = uiState.startTime, onTimeSelected = viewModel::onStartTimeChange, onTextChange = viewModel::onStartTimeChange) }
-                item { DatePickerField(label = "End Date", value = uiState.endDate, onDateSelected = viewModel::onEndDateChange, onTextChange = viewModel::onEndDateChange) }
-                item { TimePickerField(label = "End Time", value = uiState.endTime, onTimeSelected = viewModel::onEndTimeChange, onTextChange = viewModel::onEndTimeChange) }
-
+                item { DatePickerField(label = stringResource(id = R.string.start_date_label), value = uiState.startDate, onDateSelected = viewModel::onStartDateChange, onTextChange = viewModel::onStartDateChange) }
+                item { TimePickerField(label = stringResource(id = R.string.start_time_label), value = uiState.startTime, onTimeSelected = viewModel::onStartTimeChange, onTextChange = viewModel::onStartTimeChange) }
+                item { DatePickerField(label = stringResource(id = R.string.end_date_label), value = uiState.endDate, onDateSelected = viewModel::onEndDateChange, onTextChange = viewModel::onEndDateChange) }
+                item { TimePickerField(label = stringResource(id = R.string.end_time_label), value = uiState.endTime, onTimeSelected = viewModel::onEndTimeChange, onTextChange = viewModel::onEndTimeChange) }
                 item {
                     Button(
                         onClick = { viewModel.createEvent() },
                         enabled = !uiState.isSubmitting && uiState.isFormValid,
                         modifier = Modifier.fillMaxWidth().height(48.dp)
-                    ) { Text(if (uiState.isSubmitting) "Creating..." else "Create Event") }
+                    ) { Text(if (uiState.isSubmitting) stringResource(id = R.string.creating_button_text) else stringResource(id = R.string.create_event_button)) }
                 }
                 if (uiState.userMessage != null) {
-                    item { Text("Error: ${uiState.userMessage}", color = MaterialTheme.colorScheme.error) }
+                    item { Text(stringResource(id = R.string.generic_error_prefix,
+                        uiState.userMessage!!
+                    ), color = MaterialTheme.colorScheme.error) }
                 }
                 item { Spacer(modifier = Modifier.height(60.dp)) }
             }

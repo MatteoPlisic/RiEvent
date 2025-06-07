@@ -95,7 +95,8 @@ fun RiEventAppUI(
                 onLoginClick = loginViewModel::onLoginClick,
                 onForgotPasswordClick = loginViewModel::onForgotPasswordClick,
                 viewModel = loginViewModel,
-                navController = navController
+                navController = navController,
+                onBack = navController::popBackStack
             )
         }
         composable("register") {
@@ -112,7 +113,8 @@ fun RiEventAppUI(
             }
             RegisterScreen(
                 navController = navController,
-                viewModel = registerViewModel
+                viewModel = registerViewModel,
+                onBackClick = navController::popBackStack
             )
         }
         composable("welcome"){
@@ -168,7 +170,8 @@ fun RiEventAppUI(
                 SingleEventScreen(
                     eventId = eventId,
                     onBack = { navController.popBackStack() },
-                    onNavigateToUserProfile = { userId -> navController.navigate("profile/$userId") }
+                    onNavigateToUserProfile = { userId -> navController.navigate("profile/$userId") },
+                    navController = navController
                 )
             } else {
                 Text("Error: Event ID missing.")

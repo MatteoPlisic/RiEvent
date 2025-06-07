@@ -35,9 +35,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import com.example.rievent.R
 import com.example.rievent.ui.allevents.AllEventCard
 import com.example.rievent.ui.allevents.AllEventsViewModel
 import com.example.rievent.ui.utils.Drawer
@@ -56,12 +58,10 @@ import java.time.format.DateTimeFormatter
 @Composable
 fun MapScreen(
     viewModel: MapViewModel = viewModel(),
-    allEventsViewModel: AllEventsViewModel = viewModel(), // Still needed for AllEventCard
+    allEventsViewModel: AllEventsViewModel = viewModel(),
     navController: NavController,
 ) {
-    // The UI now collects a single, comprehensive state object.
     val uiState by viewModel.uiState.collectAsState()
-
     val datePickerState = rememberDatePickerState()
     val dateFormatter = remember { DateTimeFormatter.ofPattern("dd MMM yyyy") }
 
@@ -73,10 +73,10 @@ fun MapScreen(
                     datePickerState.selectedDateMillis?.let {
                         viewModel.onDateSelected(Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalDate())
                     } ?: viewModel.onDatePickerDialogToggled(false)
-                }) { Text("OK") }
+                }) { Text(stringResource(id = R.string.dialog_submit_button)) }
             },
             dismissButton = {
-                TextButton(onClick = { viewModel.onDatePickerDialogToggled(false) }) { Text("Cancel") }
+                TextButton(onClick = { viewModel.onDatePickerDialogToggled(false) }) { Text(stringResource(id = R.string.dialog_cancel_button)) }
             }
         ) {
             DatePicker(state = datePickerState)
@@ -87,13 +87,10 @@ fun MapScreen(
         position = CameraPosition.fromLatLngZoom(LatLng(45.3271, 14.4422), 12f)
     }
     val listState = rememberLazyListState()
-
-    // The cluster items are now derived directly from the uiState
     val clusterItems = remember(uiState.allMapEvents) {
         uiState.allMapEvents.map { EventClusterItem(it) }
     }
 
-    // Animate camera when an event is selected
     LaunchedEffect(uiState.selectedEventId) {
         uiState.selectedEventId?.let { eventId ->
             val event = uiState.allMapEvents.find { it.id == eventId }
@@ -104,7 +101,6 @@ fun MapScreen(
         }
     }
 
-    // Update visible events when the camera stops moving
     LaunchedEffect(cameraPositionState.isMoving) {
         if (cameraPositionState.isMoving) {
             viewModel.onMapStartMoving()
@@ -115,24 +111,24 @@ fun MapScreen(
         }
     }
 
-    Drawer(title = "Event Map", navController = navController, gesturesEnabled = false) { drawerPadding ->
+    Drawer(title = stringResource(id = R.string.map_screen_title), navController = navController, gesturesEnabled = false) { drawerPadding ->
         Column(modifier = Modifier.fillMaxSize().padding(drawerPadding)) {
-            // Date Filter TextField
             OutlinedTextField(
-                value = uiState.selectedDate?.format(dateFormatter) ?: "Any Date",
-                onValueChange = {}, readOnly = true, label = { Text("Filter by Date") },
+                value = uiState.selectedDate?.format(dateFormatter) ?: stringResource(id = R.string.map_screen_any_date),
+                onValueChange = {},
+                readOnly = true,
+                label = { Text(stringResource(id = R.string.map_screen_filter_by_date)) },
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
                     .clickable { viewModel.onDatePickerDialogToggled(true) },
                 trailingIcon = {
                     if (uiState.selectedDate != null) {
-                        IconButton(onClick = { viewModel.onDateSelected(null) }) { Icon(Icons.Filled.Clear, "Clear Date Filter") }
+                        IconButton(onClick = { viewModel.onDateSelected(null) }) { Icon(Icons.Filled.Clear, stringResource(id = R.string.map_screen_clear_date_filter)) }
                     } else {
-                        IconButton(onClick = { viewModel.onDatePickerDialogToggled(true) }) { Icon(Icons.Filled.DateRange, "Select Date") }
+                        IconButton(onClick = { viewModel.onDatePickerDialogToggled(true) }) { Icon(Icons.Filled.DateRange, stringResource(id = R.string.map_screen_select_date)) }
                     }
                 }
             )
 
-            // Map Component
             Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
                 GoogleMap(
                     modifier = Modifier.fillMaxSize(),
@@ -147,16 +143,15 @@ fun MapScreen(
                 }
             }
 
-            // List Component
             Box(modifier = Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
                 if (uiState.isLoading) {
                     CircularProgressIndicator()
                 } else if (uiState.errorMessage != null) {
-                    Text("Error: ${uiState.errorMessage}", color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(id = R.string.generic_error_prefix, uiState.errorMessage!!), color = MaterialTheme.colorScheme.error)
                 } else if (uiState.visibleEvents.isEmpty()) {
                     Text(
-                        if (uiState.selectedDate != null && uiState.allMapEvents.isEmpty()) "No events found for this date."
-                        else "No events found in this map area."
+                        if (uiState.selectedDate != null && uiState.allMapEvents.isEmpty()) stringResource(id = R.string.map_screen_no_events_for_date)
+                        else stringResource(id = R.string.map_screen_no_events_in_area)
                     )
                 } else {
                     LazyColumn(

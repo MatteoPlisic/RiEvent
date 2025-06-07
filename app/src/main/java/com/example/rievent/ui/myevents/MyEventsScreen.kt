@@ -1,43 +1,21 @@
 package com.example.rievent.ui.myevents
 
 import Event
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import com.example.rievent.R
 import com.example.rievent.ui.allevents.AllEventCard
 import com.example.rievent.ui.allevents.AllEventsViewModel
 import com.example.rievent.ui.utils.Drawer
@@ -55,26 +33,21 @@ fun MyEventsScreen(
     onNavigateToMyEvents: () -> Unit
 ) {
     val currentUserId = FirebaseAuth.getInstance().currentUser?.uid ?: return
-
-    // The UI now collects a single, clean state object.
     val uiState by viewModel.uiState.collectAsState()
-
-    // This is still needed for the AllEventCard, which is a shared component.
     val allEventsViewModel: AllEventsViewModel = viewModel()
 
-    // Load events when the screen is first composed.
     LaunchedEffect(Unit) {
         viewModel.loadEvents(currentUserId)
     }
 
     Drawer(
-        title = "My Events", // Updated title for clarity
+        title = stringResource(id = R.string.my_events_title),
         navController = navController,
         gesturesEnabled = true,
     ) { innerPadding ->
         Scaffold(
             topBar = {
-                TopAppBar(title = { Text("My Events") })
+                TopAppBar(title = { Text(stringResource(id = R.string.my_events_title)) })
             },
             modifier = Modifier.padding(innerPadding)
         ) { scaffoldPadding ->
@@ -84,7 +57,7 @@ fun MyEventsScreen(
                 }
             } else if (uiState.myEvents.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("You have not created any events.")
+                    Text(stringResource(id = R.string.my_events_no_events))
                 }
             } else {
                 LazyColumn(
@@ -103,22 +76,21 @@ fun MyEventsScreen(
                 }
             }
 
-            // The dialog's visibility is now controlled by the state object.
             uiState.eventToDelete?.let { event ->
                 AlertDialog(
                     onDismissRequest = { viewModel.onDeletionDismissed() },
                     confirmButton = {
                         TextButton(onClick = { viewModel.onDeletionConfirmed() }) {
-                            Text("Delete")
+                            Text(stringResource(id = R.string.my_events_delete_button))
                         }
                     },
                     dismissButton = {
                         TextButton(onClick = { viewModel.onDeletionDismissed() }) {
-                            Text("Cancel")
+                            Text(stringResource(id = R.string.dialog_cancel_button))
                         }
                     },
-                    title = { Text("Delete Event") },
-                    text = { Text("Are you sure you want to delete \"${event.name}\"?") }
+                    title = { Text(stringResource(id = R.string.my_events_delete_dialog_title)) },
+                    text = { Text(stringResource(id = R.string.my_events_delete_dialog_text, event.name)) }
                 )
             }
         }
@@ -139,29 +111,26 @@ fun MyEventItemCard(
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
         Column {
-            // AllEventCard is a shared component and can remain as is.
             AllEventCard(
                 event = event,
                 allEventsViewModel = allEventsViewModel,
                 onCardClick = onEventClick
             )
-
-            // Row for Edit and Delete actions
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Button(onClick = onEditClick) {
-                    Icon(Icons.Default.Edit, contentDescription = "Edit Event", modifier = Modifier.size(ButtonDefaults.IconSize))
+                    Icon(Icons.Default.Edit, contentDescription = stringResource(id = R.string.my_events_edit_icon_description), modifier = Modifier.size(ButtonDefaults.IconSize))
                     Spacer(Modifier.size(ButtonDefaults.IconSpacing))
-                    Text("Edit")
+                    Text(stringResource(id = R.string.my_events_edit_button))
                 }
                 Spacer(modifier = Modifier.width(8.dp))
                 Button(onClick = onDeleteClick, colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) {
-                    Icon(Icons.Default.Delete, contentDescription = "Delete Event", modifier = Modifier.size(ButtonDefaults.IconSize))
+                    Icon(Icons.Default.Delete, contentDescription = stringResource(id = R.string.my_events_delete_icon_description), modifier = Modifier.size(ButtonDefaults.IconSize))
                     Spacer(Modifier.size(ButtonDefaults.IconSpacing))
-                    Text("Delete")
+                    Text(stringResource(id = R.string.my_events_delete_button))
                 }
             }
         }

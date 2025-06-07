@@ -59,6 +59,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -66,6 +67,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import coil.compose.rememberAsyncImagePainter
 import coil.request.ImageRequest
+import com.example.rievent.R
 import com.example.rievent.models.EventRSPV
 import com.example.rievent.ui.utils.Drawer
 import com.google.android.gms.location.LocationServices
@@ -75,7 +77,6 @@ import com.google.firebase.auth.FirebaseAuth
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
-import java.util.Locale
 
 @SuppressLint("MissingPermission")
 @OptIn(ExperimentalMaterial3Api::class)
@@ -84,14 +85,12 @@ fun AllEventsScreen(
     viewModel: AllEventsViewModel = viewModel(),
     navController: NavController
 ) {
-    // The UI now only collects one state object. Much cleaner!
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
 
     val categoryOptions = listOf("Any", "Sports", "Academic", "Business", "Culture", "Concert", "Quizz", "Party")
     val dateFormatter = remember { DateTimeFormatter.ofPattern("dd MMM yyyy") }
 
-    // Location permission launcher
     val locationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
         onResult = { isGranted ->
@@ -110,19 +109,16 @@ fun AllEventsScreen(
         }
     )
 
-    // Request location permission on first launch
     LaunchedEffect(Unit) {
         locationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
     }
 
-    // Collect navigation actions from ViewModel
     LaunchedEffect(key1 = viewModel.navigateToSingleEventAction) {
         viewModel.navigateToSingleEventAction.collect { eventId ->
             navController.navigate("singleEvent/$eventId")
         }
     }
 
-    // Date Picker state and dialog
     val datePickerState = rememberDatePickerState()
     if (uiState.isDatePickerDialogVisible) {
         DatePickerDialog(
@@ -133,30 +129,28 @@ fun AllEventsScreen(
                         val date = Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDate()
                         viewModel.onDateSelected(date)
                     } ?: viewModel.onDatePickerDialogDismissed()
-                }) { Text("OK") }
+                }) { Text(stringResource(id = R.string.dialog_submit_button)) }
             },
             dismissButton = {
-                TextButton(onClick = { viewModel.onDatePickerDialogDismissed() }) { Text("Cancel") }
+                TextButton(onClick = { viewModel.onDatePickerDialogDismissed() }) { Text(stringResource(id = R.string.dialog_cancel_button)) }
             }
         ) {
             DatePicker(state = datePickerState)
         }
     }
 
-    Drawer(title = "Home", gesturesEnabled = true, navController = navController) {
+    Drawer(title = stringResource(id = R.string.all_events_title), gesturesEnabled = true, navController = navController) {
         Column(modifier = Modifier.fillMaxSize().padding(top = 90.dp, start = 16.dp, end = 16.dp, bottom = 16.dp)) {
 
-            // Search TextField - Reads from uiState, sends events to ViewModel
             OutlinedTextField(
                 value = uiState.searchText,
                 onValueChange = { viewModel.onSearchTextChanged(it) },
                 modifier = Modifier.fillMaxWidth(),
-                label = { Text("Search Event/User") },
-                trailingIcon = { Icon(if (uiState.searchByUser) Icons.Default.Person else Icons.Default.Search, "Search Mode") }
+                label = { Text(stringResource(id = R.string.all_events_search_label)) },
+                trailingIcon = { Icon(if (uiState.searchByUser) Icons.Default.Person else Icons.Default.Search, stringResource(id = R.string.all_events_search_mode_description)) }
             )
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Category and User/Event filters
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 ExposedDropdownMenuBox(
                     modifier = Modifier.weight(1.5f),
@@ -167,7 +161,7 @@ fun AllEventsScreen(
                         value = uiState.selectedCategory,
                         onValueChange = {},
                         readOnly = true,
-                        label = { Text("Category") },
+                        label = { Text(stringResource(id = R.string.category_label)) },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(uiState.isCategoryMenuExpanded) },
                         modifier = Modifier.menuAnchor()
                     )
@@ -177,31 +171,34 @@ fun AllEventsScreen(
                         }
                     }
                 }
-                FilterChip(selected = !uiState.searchByUser, onClick = { viewModel.onSearchModeChanged(false) }, label = { Text("By Event", maxLines = 1) })
-                FilterChip(selected = uiState.searchByUser, onClick = { viewModel.onSearchModeChanged(true) }, label = { Text("By User", maxLines = 1) })
+                FilterChip(selected = !uiState.searchByUser, onClick = { viewModel.onSearchModeChanged(false) }, label = { Text(stringResource(id = R.string.all_events_filter_by_event), maxLines = 1) })
+                FilterChip(selected = uiState.searchByUser, onClick = { viewModel.onSearchModeChanged(true) }, label = { Text(stringResource(id = R.string.all_events_filter_by_user), maxLines = 1) })
             }
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Date Filter TextField
             OutlinedTextField(
-                value = uiState.selectedDate?.format(dateFormatter) ?: "Any Date",
+                value = uiState.selectedDate?.format(dateFormatter) ?: stringResource(id = R.string.map_screen_any_date),
                 onValueChange = {},
                 readOnly = true,
-                label = { Text("Filter by Date") },
+                label = { Text(stringResource(id = R.string.map_screen_filter_by_date)) },
                 modifier = Modifier.fillMaxWidth().clickable { viewModel.onDatePickerDialogOpened() },
                 trailingIcon = {
                     if (uiState.selectedDate != null) {
-                        IconButton(onClick = { viewModel.onDateSelected(null) }) { Icon(Icons.Filled.Clear, "Clear Date") }
+                        IconButton(onClick = { viewModel.onDateSelected(null) }) { Icon(Icons.Filled.Clear, stringResource(id = R.string.map_screen_clear_date_filter)) }
                     } else {
-                        IconButton(onClick = { viewModel.onDatePickerDialogOpened() }) { Icon(Icons.Filled.DateRange, "Select Date") }
+                        IconButton(onClick = { viewModel.onDatePickerDialogOpened() }) { Icon(Icons.Filled.DateRange, stringResource(id = R.string.map_screen_select_date)) }
                     }
                 }
             )
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Distance Slider
+            val distanceText = if (uiState.distanceFilterKm >= 50f) {
+                stringResource(id = R.string.all_events_distance_any)
+            } else {
+                stringResource(id = R.string.all_events_distance_within_km, uiState.distanceFilterKm)
+            }
             Text(
-                text = "Distance: " + if (uiState.distanceFilterKm >= 50f) "Any" else String.format(Locale.US, "within %.0f km", uiState.distanceFilterKm),
+                text = stringResource(id = R.string.all_events_distance_label, distanceText),
                 style = MaterialTheme.typography.labelLarge,
                 modifier = Modifier.padding(start = 4.dp)
             )
@@ -214,15 +211,14 @@ fun AllEventsScreen(
             )
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Event List
             if (uiState.isLoading) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator()
                 }
             } else if (uiState.displayedEvents.isEmpty() && uiState.hasAppliedFilters) {
-                Text("No events found matching your criteria.", modifier = Modifier.padding(16.dp))
+                Text(stringResource(id = R.string.all_events_no_results), modifier = Modifier.padding(16.dp))
             } else if (uiState.displayedEvents.isEmpty()) {
-                Text("No public events available at the moment.", modifier = Modifier.padding(16.dp))
+                Text(stringResource(id = R.string.all_events_no_public_events), modifier = Modifier.padding(16.dp))
             } else {
                 LazyColumn(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(16.dp), contentPadding = PaddingValues(bottom = 16.dp)) {
                     items(uiState.displayedEvents, key = { event -> event.id ?: event.hashCode() }) { event ->
@@ -245,13 +241,8 @@ fun AllEventCard(
     modifier: Modifier = Modifier,
     onCardClick: (eventId: String) -> Unit
 ) {
-
     val uiState by allEventsViewModel.uiState.collectAsState()
-
-
     val rsvpMap = uiState.eventsRsvpsMap
-
-    // The rest of your logic now works perfectly because 'rsvpMap' is valid.
     val eventRsvpData: EventRSPV? = remember(event.id, rsvpMap) { event.id?.let { rsvpMap[it] } }
     val currentUid = remember { FirebaseAuth.getInstance().currentUser?.uid }
 
@@ -281,35 +272,29 @@ fun AllEventCard(
     val notComingCount = eventRsvpData?.not_coming_users?.size ?: 0
 
     Card(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 8.dp)
-            .clickable { event.id?.let { onCardClick(it) } },
+        modifier = modifier.fillMaxWidth().padding(horizontal = 8.dp).clickable { event.id?.let { onCardClick(it) } },
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
     ) {
         Box(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text(event.name, style = MaterialTheme.typography.titleLarge)
-                Text("Category: ${event.category}", style = MaterialTheme.typography.bodyMedium)
-                Text("By: ${event.ownerName ?: "N/A"}", style = MaterialTheme.typography.bodySmall)
+                Text(stringResource(id = R.string.single_event_category_label, event.category), style = MaterialTheme.typography.bodyMedium)
+                Text(stringResource(id = R.string.single_event_by_label, event.ownerName ?: stringResource(id = R.string.all_events_n_a)), style = MaterialTheme.typography.bodySmall)
                 val eventDateFormatter = remember { DateTimeFormatter.ofPattern("EEE, dd MMM yyyy, HH:mm") }
-                event.startTime?.let { Text("Starts: ${it.toDate().toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime().format(eventDateFormatter)}", style = MaterialTheme.typography.bodySmall) }
-                event.endTime?.let { Text("Ends: ${it.toDate().toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime().format(eventDateFormatter)}", style = MaterialTheme.typography.bodySmall) }
+                event.startTime?.let { Text(stringResource(id = R.string.single_event_starts_label, it.toDate().toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime().format(eventDateFormatter)), style = MaterialTheme.typography.bodySmall) }
+                event.endTime?.let { Text(stringResource(id = R.string.single_event_ends_label, it.toDate().toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime().format(eventDateFormatter)), style = MaterialTheme.typography.bodySmall) }
                 Spacer(Modifier.height(12.dp))
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = { allEventsViewModel.updateRsvp(event.id, RsvpStatus.COMING) }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = if (thisUserComing) Color(0xFF66BB6A) else MaterialTheme.colorScheme.primaryContainer, contentColor = if (thisUserComing) Color.White else MaterialTheme.colorScheme.onPrimaryContainer), enabled = !thisUserComing) { Text("Coming\n${comingCount}", fontSize = 11.sp, lineHeight = 12.sp, textAlign = TextAlign.Center) }
-                    Button(onClick = { allEventsViewModel.updateRsvp(event.id, RsvpStatus.MAYBE) }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = if (thisUserMaybeComing) Color(0xFFFFCA28) else MaterialTheme.colorScheme.secondaryContainer, contentColor = if (thisUserMaybeComing) Color.Black else MaterialTheme.colorScheme.onSecondaryContainer), enabled = !thisUserMaybeComing) { Text("Maybe\n${maybeComingCount}", fontSize = 11.sp, lineHeight = 12.sp, textAlign = TextAlign.Center) }
-                    Button(onClick = { allEventsViewModel.updateRsvp(event.id, RsvpStatus.NOT_COMING) }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = if (thisUserNotComing) Color(0xFFEF5350) else MaterialTheme.colorScheme.errorContainer, contentColor = if (thisUserNotComing) Color.White else MaterialTheme.colorScheme.onErrorContainer), enabled = !thisUserNotComing) { Text("Not Coming\n${notComingCount}", fontSize = 11.sp, lineHeight = 12.sp, textAlign = TextAlign.Center) }
+                    Button(onClick = { allEventsViewModel.updateRsvp(event.id, RsvpStatus.COMING) }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = if (thisUserComing) Color(0xFF66BB6A) else MaterialTheme.colorScheme.primaryContainer, contentColor = if (thisUserComing) Color.White else MaterialTheme.colorScheme.onPrimaryContainer), enabled = !thisUserComing) { Text(stringResource(id = R.string.all_events_card_coming_button, comingCount), fontSize = 11.sp, lineHeight = 12.sp, textAlign = TextAlign.Center) }
+                    Button(onClick = { allEventsViewModel.updateRsvp(event.id, RsvpStatus.MAYBE) }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = if (thisUserMaybeComing) Color(0xFFFFCA28) else MaterialTheme.colorScheme.secondaryContainer, contentColor = if (thisUserMaybeComing) Color.Black else MaterialTheme.colorScheme.onSecondaryContainer), enabled = !thisUserMaybeComing) { Text(stringResource(id = R.string.all_events_card_maybe_button, maybeComingCount), fontSize = 11.sp, lineHeight = 12.sp, textAlign = TextAlign.Center) }
+                    Button(onClick = { allEventsViewModel.updateRsvp(event.id, RsvpStatus.NOT_COMING) }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = if (thisUserNotComing) Color(0xFFEF5350) else MaterialTheme.colorScheme.errorContainer, contentColor = if (thisUserNotComing) Color.White else MaterialTheme.colorScheme.onErrorContainer), enabled = !thisUserNotComing) { Text(stringResource(id = R.string.all_events_card_not_coming_button, notComingCount), fontSize = 11.sp, lineHeight = 12.sp, textAlign = TextAlign.Center) }
                 }
             }
             event.imageUrl?.let { imageUrl ->
                 Image(
                     painter = rememberAsyncImagePainter(ImageRequest.Builder(LocalContext.current).data(data = imageUrl).crossfade(true).build()),
-                    contentDescription = "Event Icon",
-                    modifier = Modifier
-                        .size(width = 100.dp, height = 70.dp)
-                        .padding(top = 8.dp, end = 8.dp)
-                        .align(Alignment.TopEnd),
+                    contentDescription = stringResource(id = R.string.all_events_card_icon_description),
+                    modifier = Modifier.size(width = 100.dp, height = 70.dp).padding(top = 8.dp, end = 8.dp).align(Alignment.TopEnd),
                     contentScale = ContentScale.Crop
                 )
             }
