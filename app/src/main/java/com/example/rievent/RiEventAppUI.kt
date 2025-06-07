@@ -133,9 +133,7 @@ fun RiEventAppUI(
         composable("createEvent") {
             val currentUserId = FirebaseAuth.getInstance().currentUser?.uid ?: ""
             CreateEventScreen(
-                currentUserId = currentUserId,
                 onCreated = { navController.navigate("home") },
-                onLogout = { FirebaseAuth.getInstance().signOut(); navController.navigate("welcome") },
                 navController = navController,
             )
         }

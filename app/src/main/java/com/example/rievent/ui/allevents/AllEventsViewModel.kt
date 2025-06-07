@@ -18,131 +18,140 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.ZoneId
 
+// Helper function remains useful
 fun Timestamp.toLocalDate(): LocalDate {
     return this.toDate().toInstant().atZone(ZoneId.systemDefault()).toLocalDate()
-}
-enum class RsvpStatus {
-    COMING,
-    MAYBE,
-    NOT_COMING
 }
 
 class AllEventsViewModel : ViewModel() {
     private val db = FirebaseFirestore.getInstance()
     private val auth = FirebaseAuth.getInstance()
 
-    private val _events = MutableStateFlow<List<Event>>(emptyList())
-    val events = _events.asStateFlow()
+    // A single source of truth for the screen's entire state.
+    private val _uiState = MutableStateFlow(AllEventsUiState())
+    val uiState = _uiState.asStateFlow()
 
-    private val _eventsRsvpsMap = MutableStateFlow<Map<String, EventRSPV?>>(emptyMap())
-    val eventsRsvpsMap = _eventsRsvpsMap.asStateFlow()
+    // This holds the master list of all events fetched from Firestore.
+    private var allEventsMasterList = listOf<Event>()
 
-    private val allEvents = mutableListOf<Event>()
+    // Listeners for real-time data
     private val rsvpListeners = mutableMapOf<String, ListenerRegistration>()
     private var eventsListenerRegistration: ListenerRegistration? = null
 
-    // State holders for current filter values
-    private var currentSearchQuery = ""
-    private var currentSearchByUser = false
-    private var currentSelectedCategory = "Any"
-    private var currentSelectedDate: LocalDate? = null
-    private var currentDistanceKm: Float = 50f
-    private var currentUserLocation: Location? = null
-
-    private val _navigateToSingleEventAction = MutableSharedFlow<String>(
-        replay = 0,
-        extraBufferCapacity = 1,
-        onBufferOverflow = BufferOverflow.DROP_OLDEST
-    )
+    // Navigation actions are handled separately from UI state.
+    private val _navigateToSingleEventAction = MutableSharedFlow<String>(replay = 0, extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
     val navigateToSingleEventAction: SharedFlow<String> = _navigateToSingleEventAction
 
-    fun loadAllPublicEvents() {
+    init {
+        loadAllPublicEvents()
+    }
+
+    // --- STATE UPDATE FUNCTIONS (Events from UI) ---
+
+    fun onSearchTextChanged(text: String) {
+        _uiState.update { it.copy(searchText = text) }
+        applyFilters()
+    }
+
+    fun onSearchModeChanged(searchByUser: Boolean) {
+        _uiState.update { it.copy(searchByUser = searchByUser) }
+        applyFilters()
+    }
+
+    fun onCategorySelected(category: String) {
+        _uiState.update { it.copy(selectedCategory = category, isCategoryMenuExpanded = false) }
+        applyFilters()
+    }
+
+    fun onCategoryMenuToggled(isExpanded: Boolean) {
+        _uiState.update { it.copy(isCategoryMenuExpanded = isExpanded) }
+    }
+
+    fun onDateSelected(date: LocalDate?) {
+        _uiState.update { it.copy(selectedDate = date, isDatePickerDialogVisible = false) }
+        applyFilters()
+    }
+
+    fun onDatePickerDialogDismissed() {
+        _uiState.update { it.copy(isDatePickerDialogVisible = false) }
+    }
+
+    fun onDatePickerDialogOpened() {
+        _uiState.update { it.copy(isDatePickerDialogVisible = true) }
+    }
+
+    fun onDistanceChanged(distance: Float) {
+        _uiState.update { it.copy(distanceFilterKm = distance) }
+        applyFilters()
+    }
+
+    fun onUserLocationUpdated(location: Location?) {
+        _uiState.update { it.copy(userLocation = location) }
+        // Re-apply filters if location becomes available
+        if (location != null) applyFilters()
+    }
+
+    fun onEventClicked(eventId: String?) {
+        if (eventId.isNullOrBlank()) return
+        viewModelScope.launch {
+            _navigateToSingleEventAction.emit(eventId)
+        }
+    }
+
+    // --- DATA LOADING AND FILTERING LOGIC (Internal) ---
+
+    private fun loadAllPublicEvents() {
+        _uiState.update { it.copy(isLoading = true) }
         eventsListenerRegistration?.remove()
         eventsListenerRegistration = db.collection("Event")
             .whereEqualTo("public", true)
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
                     Log.w("AllEventsViewModel", "Listen failed.", error)
+                    _uiState.update { it.copy(isLoading = false) }
                     return@addSnapshotListener
                 }
-
                 if (snapshot == null) {
                     Log.w("AllEventsViewModel", "Snapshot was null")
                     return@addSnapshotListener
                 }
-
                 val freshEventsList = snapshot.documents.mapNotNull { doc ->
-                    try {
-                        val event = doc.toObject(Event::class.java)
-                        event?.copy(id = doc.id)
-                    } catch (e: Exception) {
-                        Log.e("AllEventsViewModel", "Error deserializing event: ${doc.id}", e)
-                        null
-                    }
+                    doc.toObject(Event::class.java)?.copy(id = doc.id)
                 }
-
-                allEvents.clear()
-                allEvents.addAll(freshEventsList)
-                // Re-apply current filters whenever data is refreshed
-                search(
-                    currentSearchQuery,
-                    currentSearchByUser,
-                    currentSelectedCategory,
-                    currentSelectedDate,
-                    currentDistanceKm,
-                    currentUserLocation
-                )
+                allEventsMasterList = freshEventsList
+                applyFilters() // Apply current filters to the new master list
+                _uiState.update { it.copy(isLoading = false) }
             }
     }
 
-    fun search(
-        query: String,
-        searchByUser: Boolean,
-        category: String,
-        date: LocalDate?,
-        distanceKm: Float,
-        userLocation: Location?
-    ) {
-        // Store current filter values
-        currentSearchQuery = query
-        currentSearchByUser = searchByUser
-        currentSelectedCategory = category
-        currentSelectedDate = date
-        currentDistanceKm = distanceKm
-        currentUserLocation = userLocation
-
-        val filtered = allEvents.filter { event ->
-            val matchesText = if (searchByUser) {
-                event.ownerName?.contains(query, ignoreCase = true) ?: false
+    private fun applyFilters() {
+        val currentState = _uiState.value
+        val filtered = allEventsMasterList.filter { event ->
+            val matchesText = if (currentState.searchByUser) {
+                event.ownerName?.contains(currentState.searchText, ignoreCase = true) ?: false
             } else {
-                event.name.contains(query, ignoreCase = true)
+                event.name.contains(currentState.searchText, ignoreCase = true)
             }
-
-            val matchesCategory = category == "Any" ||
-                    event.category.equals(category, ignoreCase = true)
-
-            val matchesDate = date == null || run {
-                val eventStartDate = event.startTime?.toLocalDate()
-                if (eventStartDate == null) return@run false
+            val matchesCategory = currentState.selectedCategory == "Any" || event.category.equals(currentState.selectedCategory, ignoreCase = true)
+            val matchesDate = currentState.selectedDate == null || run {
+                val eventStartDate = event.startTime?.toLocalDate() ?: return@run false
                 val eventEndDate = event.endTime?.toLocalDate() ?: eventStartDate
-                !date.isBefore(eventStartDate) && !date.isAfter(eventEndDate)
+                !currentState.selectedDate.isBefore(eventStartDate) && !currentState.selectedDate.isAfter(eventEndDate)
             }
-
-            val matchesDistance = if (userLocation != null && event.location != null) {
-                // Only filter by distance if both user and event locations are available
-                calculateDistance(userLocation, event.location) <= distanceKm
+            val matchesDistance = if (currentState.userLocation != null && event.location != null && currentState.distanceFilterKm < 50f) {
+                calculateDistance(currentState.userLocation, event.location) <= currentState.distanceFilterKm
             } else {
-                // If either location is missing, this filter passes
-                true
+                true // Pass if no location or distance filter is active
             }
-
             matchesText && matchesCategory && matchesDate && matchesDistance
         }
-        _events.value = filtered
+        val hasFilters = currentState.searchText.isNotEmpty() || currentState.selectedCategory != "Any" || currentState.selectedDate != null || currentState.distanceFilterKm < 50f
+        _uiState.update { it.copy(displayedEvents = filtered, hasAppliedFilters = hasFilters) }
     }
 
     private fun calculateDistance(userLocation: Location, eventGeoPoint: GeoPoint): Float {
@@ -150,47 +159,33 @@ class AllEventsViewModel : ViewModel() {
             latitude = eventGeoPoint.latitude
             longitude = eventGeoPoint.longitude
         }
-        // distanceTo returns distance in meters, so we convert to kilometers
         return userLocation.distanceTo(eventLocation) / 1000f
     }
 
-    fun listenToRsvpForEvent(eventId: String?) {
-        if (eventId == null || eventId.isBlank() || rsvpListeners.containsKey(eventId)) {
-            return
-        }
+    // --- RSVP LOGIC (Preserved as is) ---
+    // Note: This directly updates the eventsRsvpsMap in the UiState.
 
+    fun listenToRsvpForEvent(eventId: String?) {
+        if (eventId.isNullOrBlank() || rsvpListeners.containsKey(eventId)) return
         val listener = db.collection("event_rspv")
             .whereEqualTo("eventId", eventId)
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
                     Log.w("AllEventsViewModel", "RSVP listen failed for $eventId.", error)
-                    _eventsRsvpsMap.value = _eventsRsvpsMap.value.toMutableMap().apply {
-                        put(eventId, null)
-                    }
                     return@addSnapshotListener
                 }
-
-                if (snapshot != null && !snapshot.isEmpty) {
-                    val doc = snapshot.documents[0]
-                    try {
-                        val eventRSPV = doc.toObject(EventRSPV::class.java)
-                        _eventsRsvpsMap.value = _eventsRsvpsMap.value.toMutableMap().apply {
-                            put(eventId, eventRSPV)
-                        }
-                    } catch (e: Exception) {
-                        Log.e("AllEventsViewModel", "Error deserializing RSVP for $eventId: ${doc.id}", e)
-                    }
-                } else {
-                    _eventsRsvpsMap.value = _eventsRsvpsMap.value.toMutableMap().apply {
-                        put(eventId, null)
-                    }
+                val rsvp = snapshot?.documents?.firstOrNull()?.toObject(EventRSPV::class.java)
+                _uiState.update { currentState ->
+                    val newMap = currentState.eventsRsvpsMap.toMutableMap()
+                    newMap[eventId] = rsvp
+                    currentState.copy(eventsRsvpsMap = newMap)
                 }
             }
         rsvpListeners[eventId] = listener
     }
 
     fun stopListeningToRsvp(eventId: String?) {
-        if (eventId == null || eventId.isBlank()) return
+        if (eventId.isNullOrBlank()) return
         rsvpListeners.remove(eventId)?.remove()
     }
 
@@ -199,9 +194,7 @@ class AllEventsViewModel : ViewModel() {
         val currentUser = auth.currentUser ?: return
         val userRsvpProfile = RsvpUser(currentUser.uid, currentUser.displayName ?: "Anonymous")
 
-        db.collection("event_rspv")
-            .whereEqualTo("eventId", eventId)
-            .get()
+        db.collection("event_rspv").whereEqualTo("eventId", eventId).get()
             .addOnSuccessListener { snapshot ->
                 if (!snapshot.isEmpty) {
                     val docRef = snapshot.documents[0].reference
@@ -235,12 +228,5 @@ class AllEventsViewModel : ViewModel() {
         rsvpListeners.values.forEach { it.remove() }
         rsvpListeners.clear()
         Log.d("AllEventsViewModel", "ViewModel cleared, listeners removed.")
-    }
-
-    fun onEventClicked(eventId: String?) {
-        if (eventId.isNullOrBlank()) return
-        viewModelScope.launch {
-            _navigateToSingleEventAction.emit(eventId)
-        }
     }
 }

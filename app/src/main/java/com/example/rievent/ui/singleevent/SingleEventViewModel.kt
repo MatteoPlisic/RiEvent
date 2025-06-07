@@ -1,9 +1,14 @@
-package com.example.rievent.ui.singleevent // Or your actual package
+package com.example.rievent.ui.singleevent
 
+import Event
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.rievent.models.EventRSPV // Adjust import if necessary
-import com.example.rievent.models.RsvpUser // Adjust import
+import com.example.rievent.models.EventComment
+import com.example.rievent.models.EventRSPV
+import com.example.rievent.models.EventRating
+import com.example.rievent.models.RsvpUser
+import com.example.rievent.ui.allevents.RsvpStatus
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FieldValue
@@ -13,25 +18,10 @@ import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.ktx.toObject
 import com.google.firebase.firestore.ktx.toObjects
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.launch
-import Event
-import android.util.Log
-
-import com.example.rievent.models.EventComment
-import com.example.rievent.models.EventRating
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
-
-
-// import com.example.rievent.models.EventRating
-// import com.example.rievent.models.EventComment
-
-
-
-
-
-enum class RsvpStatus { COMING, MAYBE, NOT_COMING } // If not already globally available
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 
 class SingleEventViewModel : ViewModel() {
 
@@ -39,35 +29,12 @@ class SingleEventViewModel : ViewModel() {
     private val auth = FirebaseAuth.getInstance()
     private val currentUserId = auth.currentUser?.uid
 
-    private val _event = MutableStateFlow<Event?>(null)
-    val event: StateFlow<Event?> = _event.asStateFlow()
+    // Single source of truth for the screen's state
+    private val _uiState = MutableStateFlow(SingleEventUiState())
+    val uiState = _uiState.asStateFlow()
 
-    private val _eventRsvp = MutableStateFlow<EventRSPV?>(null)
-    val eventRsvp: StateFlow<EventRSPV?> = _eventRsvp.asStateFlow()
-
-    private val _ratings = MutableStateFlow<List<EventRating>>(emptyList())
-    val ratings: StateFlow<List<EventRating>> = _ratings.asStateFlow()
-
-    private val _averageRating = MutableStateFlow(0.0f)
-    val averageRating: StateFlow<Float> = _averageRating.asStateFlow()
-
-    private val _ratingsSize = MutableStateFlow(0)
-    val ratingsSize: StateFlow<Int> = _ratingsSize.asStateFlow()
-
-    private val _userRating = MutableStateFlow<EventRating?>(null)
-    val userRating: StateFlow<EventRating?> = _userRating.asStateFlow()
-
-    private val _comments = MutableStateFlow<List<EventComment>>(emptyList())
-    val comments: StateFlow<List<EventComment>> = _comments.asStateFlow()
-
-    private val _isLoading = MutableStateFlow(false)
-    val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
-
-    private val _error = MutableStateFlow<String?>(null)
-    val error: StateFlow<String?> = _error.asStateFlow()
-
-    private var _enabledRatingButton = MutableStateFlow(true)
-    val enabledRatingButton: StateFlow<Boolean> = _enabledRatingButton.asStateFlow()
+    // Internal state to hold the full ratings objects for logic
+    private var allRatings: List<EventRating> = emptyList()
 
     private var eventListener: ListenerRegistration? = null
     private var rsvpListener: ListenerRegistration? = null
@@ -75,179 +42,155 @@ class SingleEventViewModel : ViewModel() {
     private var commentsListener: ListenerRegistration? = null
 
     fun loadEventData(eventId: String) {
-
-
         if (eventId.isBlank()) {
-            _error.value = "Event ID is missing."
+            _uiState.update { it.copy(errorMessage = "Event ID is missing.", isLoading = false) }
             return
         }
-        _isLoading.value = true
+        _uiState.update { it.copy(isLoading = true) }
+
+        attachEventListeners(eventId)
+    }
+
+    private fun attachEventListeners(eventId: String) {
+        val uid = currentUserId
 
         // Load Event Details
         eventListener?.remove()
         eventListener = db.collection("Event").document(eventId)
             .addSnapshotListener { snapshot, e ->
-                if (e != null) {
-                    Log.w("SingleEventVM", "Event listen failed.", e)
-                    _error.value = "Failed to load event details: ${e.localizedMessage}"
-                    _isLoading.value = false
+                if (e != null || snapshot == null || !snapshot.exists()) {
+                    _uiState.update { it.copy(errorMessage = "Event not found.", event = null, isLoading = false) }
                     return@addSnapshotListener
                 }
-                if (snapshot != null && snapshot.exists()) {
-                    val loadedEvent = snapshot.toObject<Event>()?.copy(id = snapshot.id)
-                    _event.value = loadedEvent
-                } else {
-                    _error.value = "Event not found."
-                    _event.value = null // Explicitly nullify if not found
-                }
-                // _isLoading.value = false // Keep true until all initial data is loaded or defer
+                val loadedEvent = snapshot.toObject<Event>()?.copy(id = snapshot.id)
+                val isRatingEnabled = loadedEvent?.endTime?.let { Timestamp.now() > it } ?: false
+                _uiState.update { it.copy(event = loadedEvent, isRatingEnabled = isRatingEnabled) }
             }
 
         // Load RSVP
         rsvpListener?.remove()
         rsvpListener = db.collection("event_rspv").whereEqualTo("eventId", eventId)
-            .addSnapshotListener { snapshot, e ->
-                if (e != null) {
-                    Log.w("SingleEventVM", "RSVP listen failed.", e)
-                    return@addSnapshotListener
-                }
-                if (snapshot != null && !snapshot.isEmpty) {
-                    _eventRsvp.value = snapshot.documents[0].toObject<EventRSPV>()
-                } else {
-                    // No RSVP doc yet, create a default one for display or handle as null
-                    _eventRsvp.value = EventRSPV(eventId = eventId) // Or null if you prefer to show "no data"
-                }
+            .addSnapshotListener { snapshot, _ ->
+                val rsvp = snapshot?.documents?.firstOrNull()?.toObject<EventRSPV>() ?: EventRSPV(eventId = eventId)
+                _uiState.update { it.copy(rsvp = rsvp) }
             }
 
         // Load Ratings
         ratingsListener?.remove()
         ratingsListener = db.collection("event_ratings").whereEqualTo("eventId", eventId)
-            .addSnapshotListener { snapshot, e ->
-                if (e != null) {
-                    Log.w("SingleEventVM", "Ratings listen failed.", e)
-                    return@addSnapshotListener
-                }
-                if (snapshot != null) {
-                    val currentRatings = snapshot.documents.mapNotNull { doc ->
-                        doc.toObject<EventRating>()?.copy(id = doc.id) // Manually set the ID
-                    }
-                    _ratings.value = currentRatings
+            .addSnapshotListener { snapshot, _ ->
+                val ratingsList = snapshot?.toObjects<EventRating>() ?: emptyList()
+                allRatings = ratingsList // Store the full list internally
 
-                    calculateAverageRating(currentRatings)
-                    _ratingsSize.value = currentRatings.size
-                    if(_event.value?.endTime != null)
-                            _enabledRatingButton.value = Timestamp.now() > _event.value!!.endTime!!
-                    Log.d("enabled rating", _enabledRatingButton.value.toString())
-                    _userRating.value = currentRatings.find { it.userId == currentUserId && it.eventId == eventId }
-                }
+                val avg = if (ratingsList.isEmpty()) 0.0f else ratingsList.map { it.rating }.average().toFloat()
+                val userRatingValue = ratingsList.find { it.userId == uid }?.rating
+
+                _uiState.update { it.copy(averageRating = avg, totalRatings = ratingsList.size, userRating = userRatingValue) }
             }
 
-
+        // Load Comments
         commentsListener?.remove()
         commentsListener = db.collection("event_comments").whereEqualTo("eventId", eventId)
-            .orderBy("createdAt", Query.Direction.DESCENDING) // Show newest comments first
-            .limit(50) // Limit comments for performance
-            .addSnapshotListener { snapshot, e ->
-                if (e != null) {
-                    Log.w("SingleEventVM", "Comments listen failed.", e)
-                    return@addSnapshotListener
-                }
-                if (snapshot != null) {
-                    _comments.value = snapshot.toObjects<EventComment>()
-                }
-                _isLoading.value = false // Set loading to false after all listeners are attached
-                return@addSnapshotListener
+            .orderBy("createdAt", Query.Direction.DESCENDING).limit(50)
+            .addSnapshotListener { snapshot, _ ->
+                val commentsList = snapshot?.toObjects<EventComment>() ?: emptyList()
+                _uiState.update { it.copy(comments = commentsList, isLoading = false) } // Final load, set loading to false
             }
     }
 
-    private fun calculateAverageRating(ratingsList: List<EventRating>) {
-        if (ratingsList.isEmpty()) {
-            _averageRating.value = 0.0f
+    // --- UI EVENT HANDLERS ---
+
+    fun onNewCommentChange(text: String) {
+        _uiState.update { it.copy(newCommentText = text) }
+    }
+
+    fun onRatingDialogToggled(isVisible: Boolean) {
+        _uiState.update { it.copy(isRatingDialogVisible = isVisible) }
+    }
+
+    fun addComment(eventId: String) {
+        val uid = currentUserId ?: return
+        val commentText = _uiState.value.newCommentText.trim()
+        if (commentText.isBlank()) return
+
+        viewModelScope.launch {
+            try {
+                // Step 1: Determine the user's name.
+                var userName = auth.currentUser?.displayName
+                // If the name is null or blank, fetch it from Firestore.
+                if (userName.isNullOrBlank()) {
+                    val userDoc = db.collection("users").document(uid).get().await()
+                    userName = userDoc.getString("displayName") ?: "Anonymous" // Fallback to Anonymous
+                }
+
+                // Step 2: Get the profile picture URL.
+                val profilePic = auth.currentUser?.photoUrl?.toString()
+
+                // Step 3: Create the comment object with the definitive name.
+                val newComment = EventComment(
+                    eventId = eventId,
+                    userId = uid,
+                    userName = userName,
+                    commentText = commentText,
+                    profileImageUrl = profilePic
+                )
+
+                // Step 4: Add the comment to Firestore.
+                db.collection("event_comments").add(newComment).await()
+
+                // Step 5: Clear the input field in the UI on success.
+                _uiState.update { it.copy(newCommentText = "") }
+
+            } catch (e: Exception) {
+                Log.e("SingleEventVM", "Failed to add comment", e)
+                _uiState.update { it.copy(errorMessage = "Failed to add comment.") }
+            }
+        }
+    }
+
+    fun submitRating(eventId: String, ratingValue: Float) {
+        val uid = currentUserId ?: return
+        onRatingDialogToggled(false) // Hide dialog immediately
+
+        val existingRating = allRatings.firstOrNull { it.userId == uid }
+
+        if (existingRating != null && existingRating.id != null) {
+            db.collection("event_ratings").document(existingRating.id)
+                .update("rating", ratingValue, "createdAt", Timestamp.now())
         } else {
-            _averageRating.value = ratingsList.map { it.rating }.average().toFloat()
+            val newRating = EventRating(
+                eventId = eventId,
+                userId = uid,
+                userName = auth.currentUser?.displayName ?: "Anonymous",
+                rating = ratingValue
+            )
+            db.collection("event_ratings").add(newRating)
         }
     }
 
     fun updateRsvp(eventId: String, newStatus: RsvpStatus) {
-        val uid = currentUserId ?: return Unit.also { _error.value = "User not logged in." }
-        val userName = auth.currentUser?.displayName ?: "Anonymous"
-        val userRsvpProfile = RsvpUser(uid, userName)
+        val uid = currentUserId ?: return
+        val userRsvpProfile = RsvpUser(uid, auth.currentUser?.displayName ?: "Anonymous")
 
-        db.collection("event_rspv").whereEqualTo("eventId", eventId)
-            .get()
+        db.collection("event_rspv").whereEqualTo("eventId", eventId).get()
             .addOnSuccessListener { snapshot ->
-                val docRef = if (!snapshot.isEmpty) {
-                    snapshot.documents[0].reference
-                } else {
-                    // Create new RSVP doc if it doesn't exist
-                    val newRsvpDoc = EventRSPV(eventId = eventId)
-                    val newDocRef = db.collection("event_rspv").document() // Auto-generate ID
-                    newDocRef.set(newRsvpDoc) // Set initial empty doc
-                    newDocRef // return the new doc ref
+                val docRef = snapshot.documents.firstOrNull()?.reference
+                    ?: db.collection("event_rspv").document().also { it.set(EventRSPV(eventId = eventId)) }
+
+                val updates = mapOf(
+                    "coming_users" to FieldValue.arrayRemove(userRsvpProfile),
+                    "maybe_users" to FieldValue.arrayRemove(userRsvpProfile),
+                    "not_coming_users" to FieldValue.arrayRemove(userRsvpProfile)
+                )
+                docRef.update(updates).addOnSuccessListener {
+                    val targetField = when (newStatus) {
+                        RsvpStatus.COMING -> "coming_users"
+                        RsvpStatus.MAYBE -> "maybe_users"
+                        RsvpStatus.NOT_COMING -> "not_coming_users"
+                    }
+                    docRef.update(targetField, FieldValue.arrayUnion(userRsvpProfile))
                 }
-
-                val updates = mutableMapOf<String, Any>()
-                updates["coming_users"] = FieldValue.arrayRemove(userRsvpProfile)
-                updates["maybe_users"] = FieldValue.arrayRemove(userRsvpProfile)
-                updates["not_coming_users"] = FieldValue.arrayRemove(userRsvpProfile)
-
-                val targetField = when (newStatus) {
-                    RsvpStatus.COMING -> "coming_users"
-                    RsvpStatus.MAYBE -> "maybe_users"
-                    RsvpStatus.NOT_COMING -> "not_coming_users"
-                }
-                updates[targetField] = FieldValue.arrayUnion(userRsvpProfile)
-
-                docRef.update(updates)
-                    .addOnFailureListener { e -> _error.value = "RSVP update failed: ${e.localizedMessage}" }
             }
-            .addOnFailureListener { e -> _error.value = "Failed to fetch RSVP doc for update: ${e.localizedMessage}" }
-    }
-
-    fun submitRating(eventId: String, ratingValue: Float) {
-        val uid = currentUserId ?: return Unit.also { _error.value = "User not logged in." }
-        val userName = auth.currentUser?.displayName ?: "Anonymous"
-
-        // Check if user has already rated. If so, update; otherwise, create new.
-        val existingRating = _ratings.value.firstOrNull { it.userId == uid && it.eventId == eventId }
-
-        if (existingRating != null && existingRating.id != null) {
-            // Update existing rating
-            db.collection("event_ratings").document(existingRating.id)
-                .update("rating", ratingValue, "createdAt", Timestamp.now())
-                .addOnFailureListener { e -> _error.value = "Failed to update rating: ${e.localizedMessage}" }
-        } else {
-            // Add new rating
-            val newRating = EventRating(
-                eventId = eventId,
-                userId = uid,
-                userName = userName,
-                rating = ratingValue
-            )
-            db.collection("event_ratings").add(newRating)
-                .addOnFailureListener { e -> _error.value = "Failed to submit rating: ${e.localizedMessage}" }
-        }
-    }
-
-    fun addComment(eventId: String, commentText: String) {
-        val uid = currentUserId ?: return Unit.also { _error.value = "User not logged in." }
-        if (commentText.isBlank()) {
-            _error.value = "Comment cannot be empty."
-            return
-        }
-        val userName = auth.currentUser?.displayName ?: "Anonymous"
-        val profilePic = auth.currentUser?.photoUrl?.toString()
-
-        val newComment = EventComment(
-            eventId = eventId,
-            userId = uid,
-            userName = userName,
-            commentText = commentText,
-            profileImageUrl = profilePic
-        )
-        db.collection("event_comments").add(newComment)
-            .addOnSuccessListener { /* Optionally clear comment input field via a callback or state */ }
-            .addOnFailureListener { e -> _error.value = "Failed to add comment: ${e.localizedMessage}" }
     }
 
     override fun onCleared() {

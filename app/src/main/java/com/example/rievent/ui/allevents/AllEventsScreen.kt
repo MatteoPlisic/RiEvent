@@ -31,6 +31,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DropdownMenuItem
@@ -52,9 +53,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -74,7 +73,6 @@ import com.google.android.gms.location.Priority
 import com.google.android.gms.tasks.CancellationTokenSource
 import com.google.firebase.auth.FirebaseAuth
 import java.time.Instant
-import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -86,75 +84,35 @@ fun AllEventsScreen(
     viewModel: AllEventsViewModel = viewModel(),
     navController: NavController
 ) {
-    val events by viewModel.events.collectAsState()
+    // The UI now only collects one state object. Much cleaner!
+    val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
 
-    // States for filters
-    var searchText by remember { mutableStateOf("") }
-    var searchByUser by remember { mutableStateOf(false) }
-    var expandedCategory by remember { mutableStateOf(false) }
-    var selectedCategory by remember { mutableStateOf("Any") }
     val categoryOptions = listOf("Any", "Sports", "Academic", "Business", "Culture", "Concert", "Quizz", "Party")
-    var selectedDate by remember { mutableStateOf<LocalDate?>(null) }
-    var showDatePickerDialog by remember { mutableStateOf(false) }
     val dateFormatter = remember { DateTimeFormatter.ofPattern("dd MMM yyyy") }
-
-    // States for location and distance filter
-    var userLocation by remember { mutableStateOf<Location?>(null) }
-    var distanceFilterKm by remember { mutableStateOf(50f) } // Default to 50km
 
     // Location permission launcher
     val locationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
         onResult = { isGranted ->
             if (isGranted) {
-                // Permission granted, get the current location
                 val fusedLocationClient = LocationServices.getFusedLocationProviderClient(context)
-                fusedLocationClient.getCurrentLocation(
-                    Priority.PRIORITY_HIGH_ACCURACY,
-                    CancellationTokenSource().token
-                ).addOnSuccessListener { location: Location? ->
-                    userLocation = location
-                    Log.d("Location", "Location acquired: $location")
-                }.addOnFailureListener {
-                    Log.e("Location", "Failed to get location", it)
-                }
+                fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, CancellationTokenSource().token)
+                    .addOnSuccessListener { location: Location? ->
+                        viewModel.onUserLocationUpdated(location)
+                        Log.d("Location", "Location acquired: $location")
+                    }.addOnFailureListener {
+                        Log.e("Location", "Failed to get location", it)
+                    }
             } else {
                 Log.d("Location", "Location permission denied by user.")
             }
         }
     )
 
-    // Date Picker state and dialog
-    val datePickerState = rememberDatePickerState()
-    if (showDatePickerDialog) {
-        DatePickerDialog(
-            onDismissRequest = { showDatePickerDialog = false },
-            confirmButton = {
-                TextButton(onClick = {
-                    showDatePickerDialog = false
-                    datePickerState.selectedDateMillis?.let { millis ->
-                        selectedDate = Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDate()
-                    }
-                }) { Text("OK") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDatePickerDialog = false }) { Text("Cancel") }
-            }
-        ) {
-            DatePicker(state = datePickerState)
-        }
-    }
-
-    // Initial data load and permission request
+    // Request location permission on first launch
     LaunchedEffect(Unit) {
-        viewModel.loadAllPublicEvents()
         locationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
-    }
-
-    // Trigger search whenever a filter changes
-    LaunchedEffect(searchText, searchByUser, selectedCategory, selectedDate, distanceFilterKm, userLocation) {
-        viewModel.search(searchText, searchByUser, selectedCategory, selectedDate, distanceFilterKm, userLocation)
     }
 
     // Collect navigation actions from ViewModel
@@ -164,76 +122,78 @@ fun AllEventsScreen(
         }
     }
 
-    Drawer(
-        title = "Home",
-        gesturesEnabled = true,
-        navController = navController
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(top = 90.dp, start = 16.dp, end = 16.dp, bottom = 16.dp)
+    // Date Picker state and dialog
+    val datePickerState = rememberDatePickerState()
+    if (uiState.isDatePickerDialogVisible) {
+        DatePickerDialog(
+            onDismissRequest = { viewModel.onDatePickerDialogDismissed() },
+            confirmButton = {
+                TextButton(onClick = {
+                    datePickerState.selectedDateMillis?.let { millis ->
+                        val date = Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDate()
+                        viewModel.onDateSelected(date)
+                    } ?: viewModel.onDatePickerDialogDismissed()
+                }) { Text("OK") }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.onDatePickerDialogDismissed() }) { Text("Cancel") }
+            }
         ) {
-            // Search TextField
+            DatePicker(state = datePickerState)
+        }
+    }
+
+    Drawer(title = "Home", gesturesEnabled = true, navController = navController) {
+        Column(modifier = Modifier.fillMaxSize().padding(top = 90.dp, start = 16.dp, end = 16.dp, bottom = 16.dp)) {
+
+            // Search TextField - Reads from uiState, sends events to ViewModel
             OutlinedTextField(
-                value = searchText,
-                onValueChange = { searchText = it },
+                value = uiState.searchText,
+                onValueChange = { viewModel.onSearchTextChanged(it) },
                 modifier = Modifier.fillMaxWidth(),
                 label = { Text("Search Event/User") },
-                trailingIcon = { Icon(if (searchByUser) Icons.Default.Person else Icons.Default.Search, "Search Mode") }
+                trailingIcon = { Icon(if (uiState.searchByUser) Icons.Default.Person else Icons.Default.Search, "Search Mode") }
             )
             Spacer(modifier = Modifier.height(8.dp))
 
             // Category and User/Event filters
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 ExposedDropdownMenuBox(
                     modifier = Modifier.weight(1.5f),
-                    expanded = expandedCategory,
-                    onExpandedChange = { expandedCategory = !expandedCategory }
+                    expanded = uiState.isCategoryMenuExpanded,
+                    onExpandedChange = { viewModel.onCategoryMenuToggled(it) }
                 ) {
                     TextField(
-                        value = selectedCategory,
+                        value = uiState.selectedCategory,
                         onValueChange = {},
                         readOnly = true,
                         label = { Text("Category") },
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expandedCategory) },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(uiState.isCategoryMenuExpanded) },
                         modifier = Modifier.menuAnchor()
                     )
-                    ExposedDropdownMenu(expanded = expandedCategory, onDismissRequest = { expandedCategory = false }) {
+                    ExposedDropdownMenu(expanded = uiState.isCategoryMenuExpanded, onDismissRequest = { viewModel.onCategoryMenuToggled(false) }) {
                         categoryOptions.forEach { category ->
-                            DropdownMenuItem(text = { Text(category) }, onClick = {
-                                selectedCategory = category
-                                expandedCategory = false
-                            })
+                            DropdownMenuItem(text = { Text(category) }, onClick = { viewModel.onCategorySelected(category) })
                         }
                     }
                 }
-                FilterChip(selected = !searchByUser, onClick = { searchByUser = false }, label = { Text("By Event", maxLines = 1) })
-                FilterChip(selected = searchByUser, onClick = { searchByUser = true }, label = { Text("By User", maxLines = 1) })
+                FilterChip(selected = !uiState.searchByUser, onClick = { viewModel.onSearchModeChanged(false) }, label = { Text("By Event", maxLines = 1) })
+                FilterChip(selected = uiState.searchByUser, onClick = { viewModel.onSearchModeChanged(true) }, label = { Text("By User", maxLines = 1) })
             }
             Spacer(modifier = Modifier.height(8.dp))
 
-
             // Date Filter TextField
             OutlinedTextField(
-                value = selectedDate?.format(dateFormatter) ?: "Any Date",
+                value = uiState.selectedDate?.format(dateFormatter) ?: "Any Date",
                 onValueChange = {},
                 readOnly = true,
                 label = { Text("Filter by Date") },
-                modifier = Modifier.fillMaxWidth().clickable { showDatePickerDialog = true },
+                modifier = Modifier.fillMaxWidth().clickable { viewModel.onDatePickerDialogOpened() },
                 trailingIcon = {
-                    if (selectedDate != null) {
-                        IconButton(onClick = { selectedDate = null }) {
-                            Icon(Icons.Filled.Clear, "Clear Date")
-                        }
+                    if (uiState.selectedDate != null) {
+                        IconButton(onClick = { viewModel.onDateSelected(null) }) { Icon(Icons.Filled.Clear, "Clear Date") }
                     } else {
-                        IconButton(onClick = { showDatePickerDialog = true }) {
-                            Icon(Icons.Filled.DateRange, "Select Date")
-                        }
+                        IconButton(onClick = { viewModel.onDatePickerDialogOpened() }) { Icon(Icons.Filled.DateRange, "Select Date") }
                     }
                 }
             )
@@ -241,17 +201,13 @@ fun AllEventsScreen(
 
             // Distance Slider
             Text(
-                text = "Distance: " + if (distanceFilterKm >= 50f) {
-                    "Any"
-                } else {
-                    String.format(Locale.US, "within %.0f km", distanceFilterKm)
-                },
+                text = "Distance: " + if (uiState.distanceFilterKm >= 50f) "Any" else String.format(Locale.US, "within %.0f km", uiState.distanceFilterKm),
                 style = MaterialTheme.typography.labelLarge,
                 modifier = Modifier.padding(start = 4.dp)
             )
             Slider(
-                value = distanceFilterKm,
-                onValueChange = { distanceFilterKm = it },
+                value = uiState.distanceFilterKm,
+                onValueChange = { viewModel.onDistanceChanged(it) },
                 valueRange = 1f..50f,
                 steps = 48,
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)
@@ -259,17 +215,17 @@ fun AllEventsScreen(
             Spacer(modifier = Modifier.height(16.dp))
 
             // Event List
-            if (events.isEmpty() && (searchText.isNotEmpty() || selectedCategory != "Any" || selectedDate != null || distanceFilterKm < 50f)) {
+            if (uiState.isLoading) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator()
+                }
+            } else if (uiState.displayedEvents.isEmpty() && uiState.hasAppliedFilters) {
                 Text("No events found matching your criteria.", modifier = Modifier.padding(16.dp))
-            } else if (events.isEmpty()) {
+            } else if (uiState.displayedEvents.isEmpty()) {
                 Text("No public events available at the moment.", modifier = Modifier.padding(16.dp))
             } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
-                    contentPadding = PaddingValues(bottom = 16.dp)
-                ) {
-                    items(events, key = { event -> event.id ?: event.hashCode() }) { event ->
+                LazyColumn(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(16.dp), contentPadding = PaddingValues(bottom = 16.dp)) {
+                    items(uiState.displayedEvents, key = { event -> event.id ?: event.hashCode() }) { event ->
                         AllEventCard(
                             event = event,
                             allEventsViewModel = viewModel,
@@ -289,7 +245,13 @@ fun AllEventCard(
     modifier: Modifier = Modifier,
     onCardClick: (eventId: String) -> Unit
 ) {
-    val rsvpMap by allEventsViewModel.eventsRsvpsMap.collectAsState()
+
+    val uiState by allEventsViewModel.uiState.collectAsState()
+
+
+    val rsvpMap = uiState.eventsRsvpsMap
+
+    // The rest of your logic now works perfectly because 'rsvpMap' is valid.
     val eventRsvpData: EventRSPV? = remember(event.id, rsvpMap) { event.id?.let { rsvpMap[it] } }
     val currentUid = remember { FirebaseAuth.getInstance().currentUser?.uid }
 
@@ -344,7 +306,10 @@ fun AllEventCard(
                 Image(
                     painter = rememberAsyncImagePainter(ImageRequest.Builder(LocalContext.current).data(data = imageUrl).crossfade(true).build()),
                     contentDescription = "Event Icon",
-                    modifier = Modifier.size(width = 100.dp, height = 70.dp).padding(top = 8.dp, end = 8.dp).align(Alignment.TopEnd),
+                    modifier = Modifier
+                        .size(width = 100.dp, height = 70.dp)
+                        .padding(top = 8.dp, end = 8.dp)
+                        .align(Alignment.TopEnd),
                     contentScale = ContentScale.Crop
                 )
             }

@@ -30,8 +30,7 @@ class ChatViewModel : ViewModel() {
     private var messagesListener: ListenerRegistration? = null
     private var newChatParticipantDetails: Map<String, ParticipantInfo>? = null
 
-    // [THE FIX] The listener is started here, when the ViewModel is first created.
-    // It will remain active across all screens that share this ViewModel.
+
     init {
         listenForUserChats()
     }

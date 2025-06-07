@@ -30,9 +30,6 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -52,11 +49,11 @@ import com.google.firebase.auth.FirebaseAuth
 fun SearchUserScreen(
     navController: NavController,
     findUserViewModel: SearchUserViewModel = viewModel(),
-    chatViewModel: ChatViewModel
+    chatViewModel: ChatViewModel // This is the shared ViewModel for chat logic
 ) {
-    val searchResults by findUserViewModel.searchResults.collectAsState()
-    val isLoading by findUserViewModel.isLoading.collectAsState()
-    var searchQuery by remember { mutableStateOf("") }
+    // Collect the single state object from the ViewModel.
+    val uiState by findUserViewModel.uiState.collectAsState()
+
     val currentUser = FirebaseAuth.getInstance().currentUser
 
     Scaffold(
@@ -76,13 +73,10 @@ fun SearchUserScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            // Search Bar
+            // Search Bar - Reads from uiState, sends events to ViewModel
             OutlinedTextField(
-                value = searchQuery,
-                onValueChange = {
-                    searchQuery = it
-                    findUserViewModel.searchUsers(it)
-                },
+                value = uiState.searchQuery,
+                onValueChange = { findUserViewModel.onSearchQueryChanged(it) },
                 label = { Text("Search for a user...") },
                 modifier = Modifier
                     .fillMaxWidth()
@@ -91,37 +85,42 @@ fun SearchUserScreen(
             )
 
             // Results List
-            if (isLoading) {
+            if (uiState.isLoading) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator()
                 }
-            } else {
+            } else if (uiState.errorMessage != null) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text(uiState.errorMessage!!, color = MaterialTheme.colorScheme.error)
+                }
+            }
+            else {
                 LazyColumn(modifier = Modifier.fillMaxSize()) {
-                    items(searchResults, key = { it.uid!! }) { user ->
-                        // Don't show the current user in the search results
+                    items(uiState.searchResults, key = { it.uid!! }) { user ->
+                        // Don't show the current user in their own search results
                         if (user.uid != currentUser?.uid) {
                             UserSearchResultItem(
                                 user = user,
                                 onClick = {
                                     if (currentUser != null) {
-                                        // 1. Prepare participant info
+                                        // 1. Prepare participant info for the new chat
                                         val currentUserInfo = ParticipantInfo(name = currentUser.displayName ?: "", imageUrl = currentUser.photoUrl?.toString())
                                         val searchedUserInfo = ParticipantInfo(name = user.displayName ?: "", imageUrl = user.photoUrl)
 
-                                        // 2. Create deterministic chatId
+                                        // 2. Create deterministic chatId by sorting UIDs
                                         val participantIds = listOf(currentUser.uid, user.uid).sorted()
                                         val chatId = participantIds.joinToString(separator = "_")
 
-                                        // 3. Prepare details map
+                                        // 3. Prepare the details map needed to create the chat document
                                         val participantDetails = mapOf(
                                             currentUser.uid to currentUserInfo,
                                             user.uid to searchedUserInfo
                                         )
 
-                                        // 4. Call prepare function in shared VM
+                                        // 4. Pass the details to the shared ChatViewModel
                                         chatViewModel.prepareForNewChat(participantDetails)
 
-                                        // 5. Navigate
+                                        // 5. Navigate to the conversation screen
                                         navController.navigate("conversation/$chatId")
                                     }
                                 }
@@ -136,7 +135,6 @@ fun SearchUserScreen(
 
 @Composable
 fun UserSearchResultItem(user: User, onClick: () -> Unit) {
-    // --- Define the painter outside the AsyncImage call ---
     val placeholderPainter = rememberVectorPainter(image = Icons.Default.Person)
 
     Row(
@@ -151,10 +149,8 @@ fun UserSearchResultItem(user: User, onClick: () -> Unit) {
                 .data(user.photoUrl)
                 .crossfade(true)
                 .build(),
-            // --- Use the painter variable here ---
             placeholder = placeholderPainter,
             error = placeholderPainter,
-            // ------------------------------------
             contentDescription = "Profile Picture",
             modifier = Modifier
                 .size(48.dp)

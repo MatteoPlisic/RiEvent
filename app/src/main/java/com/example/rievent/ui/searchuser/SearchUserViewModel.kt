@@ -2,12 +2,13 @@ package com.example.rievent.ui.chat
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.rievent.models.User // Your existing User data class
+import com.example.rievent.models.User
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 
@@ -15,62 +16,55 @@ class SearchUserViewModel : ViewModel() {
 
     private val db = FirebaseFirestore.getInstance()
 
-    private val _searchResults = MutableStateFlow<List<User>>(emptyList())
-    val searchResults = _searchResults.asStateFlow()
-
-    private val _isLoading = MutableStateFlow(false)
-    val isLoading = _isLoading.asStateFlow()
-
-    private val _error = MutableStateFlow<String?>(null)
-    val error = _error.asStateFlow()
+    // Single source of truth for the screen's entire state.
+    private val _uiState = MutableStateFlow(SearchUserUiState())
+    val uiState = _uiState.asStateFlow()
 
     private var searchJob: Job? = null
 
     /**
-     * Searches for users based on their display name.
-     * Uses a debounce mechanism to avoid excessive Firestore queries while the user is typing.
-     *
-     * @param query The text to search for in user display names.
+     * Called by the UI whenever the search text changes.
+     * It updates the state and triggers the debounced search logic.
      */
-    fun searchUsers(query: String) {
+    fun onSearchQueryChanged(query: String) {
+        // Immediately update the text field in the UI
+        _uiState.update { it.copy(searchQuery = query) }
+
         // Cancel any previous search job to start a new one
         searchJob?.cancel()
 
-        // If the query is blank, clear the results and stop.
+        // If the query is blank, clear the results and loading state, then stop.
         if (query.isBlank()) {
-            _searchResults.value = emptyList()
+            _uiState.update { it.copy(searchResults = emptyList(), isLoading = false) }
             return
         }
 
-        // Start a new coroutine for the search
+        // Start a new coroutine for the search with a debounce
         searchJob = viewModelScope.launch {
-            // Debounce: Wait for 300ms of inactivity before actually searching
-            delay(300)
+            delay(300) // Wait for 300ms of inactivity
 
-            _isLoading.value = true
-            _error.value = null
+            _uiState.update { it.copy(isLoading = true, errorMessage = null) }
 
             try {
                 // Firestore query to find users whose name starts with the query text.
-                // This is a case-sensitive prefix search.
-                // For case-insensitivity, you'd typically store a lowercased version of the name.
+                // '\uf8ff' is a special char that acts like a wildcard for prefix matching.
                 val result = db.collection("users")
-                    .orderBy("displayName") // You must order by the field you are range-querying
+                    .orderBy("displayName")
                     .startAt(query)
-                    .endAt(query + '\uf8ff') // '\uf8ff' is a special char that acts like a wildcard
-                    .limit(20) // Always limit your search results to prevent huge bills
+                    .endAt(query + '\uf8ff')
+                    .limit(20) // Always limit search results
                     .get()
-                    .await() // Using kotlinx-coroutines-play-services
+                    .await()
 
                 val userList = result.documents.mapNotNull { doc ->
-                    doc.toObject(User::class.java)?.copy(uid = doc.id) // Assuming your User model has a uid field
+                    doc.toObject(User::class.java)?.copy(uid = doc.id)
                 }
-                _searchResults.value = userList
+
+                // Update the state with the results
+                _uiState.update { it.copy(searchResults = userList, isLoading = false) }
 
             } catch (e: Exception) {
-                _error.value = "Failed to search for users: ${e.message}"
-            } finally {
-                _isLoading.value = false
+                _uiState.update { it.copy(errorMessage = "Failed to search for users.", isLoading = false) }
             }
         }
     }

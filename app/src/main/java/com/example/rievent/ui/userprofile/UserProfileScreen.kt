@@ -1,11 +1,10 @@
 package com.example.rievent.ui.userprofile
 
-
 import ParticipantInfo
-import android.util.Log
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -54,106 +53,94 @@ import com.google.firebase.auth.FirebaseAuth
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun UserProfileScreen(
-    userId: String, // The ID of the profile to display
+    userId: String,
     viewModel: UserProfileViewModel = viewModel(),
-    allEventsViewModel: AllEventsViewModel = viewModel(), // If using AllEventCard and it needs its own VM
+    allEventsViewModel: AllEventsViewModel = viewModel(),
     onBack: () -> Unit,
     onNavigateToSingleEvent: (eventId: String) -> Unit,
-    isCurrentUserProfile: Boolean, // To know if this is the logged-in user's own profile
+    isCurrentUserProfile: Boolean,
     chatViewModel: ChatViewModel,
     navController: NavController
 ) {
-    val userProfile by viewModel.userProfile.collectAsState()
-    val createdEvents by viewModel.createdEvents.collectAsState()
-    val isLoadingProfile by viewModel.isLoadingProfile.collectAsState()
-    val isLoadingEvents by viewModel.isLoadingEvents.collectAsState()
-    val error by viewModel.error.collectAsState()
+    // Collect the single state object
+    val uiState by viewModel.uiState.collectAsState()
 
     LaunchedEffect(userId) {
         if (userId.isNotBlank()) {
-            viewModel.loadUserProfile(userId)
-            viewModel.loadCreatedEvents(userId)
+            viewModel.loadDataFor(userId)
         }
     }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(userProfile?.displayName ?: "User Profile") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
+                title = { Text(uiState.user?.displayName ?: "User Profile") },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, "Back") } },
                 actions = {
                     if (isCurrentUserProfile) {
-                        IconButton(onClick = { /* TODO: Navigate to Edit Profile Screen */ }) {
-                            Icon(Icons.Filled.Edit, contentDescription = "Edit Profile")
-                        }
+                        IconButton(onClick = { /* TODO: Navigate to Edit Profile */ }) { Icon(Icons.Filled.Edit, "Edit Profile") }
                     }
                 }
             )
         }
     ) { paddingValues ->
         LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .padding(16.dp),
+            modifier = Modifier.fillMaxSize().padding(paddingValues).padding(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             item {
-                if (isLoadingProfile && userProfile == null) {
+                if (uiState.isLoadingProfile) {
                     CircularProgressIndicator()
-                } else if (userProfile != null) {
+                } else if (uiState.user != null) {
                     UserProfileHeader(
-                        user = userProfile!!, viewModel,
+                        user = uiState.user!!,
+                        isFollowing = uiState.isFollowing,
+                        isFollowActionLoading = uiState.isFollowActionLoading,
                         isCurrentUserProfile = isCurrentUserProfile,
-                        chatViewModel = chatViewModel,
-                        navController = navController
+                        onToggleFollow = { viewModel.toggleFollowUser(userId) },
+                        onMessageClick = {
+                            val currentUser = FirebaseAuth.getInstance().currentUser
+                            if (currentUser != null) {
+                                val currentUserInfo = ParticipantInfo(name = currentUser.displayName ?: "You", imageUrl = currentUser.photoUrl?.toString())
+                                val profileUserInfo = ParticipantInfo(name = uiState.user!!.displayName ?: "User", imageUrl = uiState.user!!.photoUrl)
+                                val participantIds = listOf(currentUser.uid, uiState.user!!.uid!!).sorted()
+                                val chatId = participantIds.joinToString(separator = "_")
+                                val participantDetails = mapOf(currentUser.uid to currentUserInfo, uiState.user!!.uid!! to profileUserInfo)
+
+                                chatViewModel.prepareForNewChat(participantDetails)
+                                navController.navigate("conversation/$chatId")
+                            }
+                        }
                     )
-                } else if (error != null && userProfile == null) {
-                    Text("Error: $error", color = MaterialTheme.colorScheme.error)
                 } else {
-                    Text("User profile not found.")
+                    Text(uiState.errorMessage ?: "User not found.", color = MaterialTheme.colorScheme.error)
                 }
             }
 
-            if (userProfile != null) { // Only show events section if profile loaded
+            if (uiState.user != null) {
                 item {
-                    Text(
-                        "Events Created",
-                        style = MaterialTheme.typography.headlineSmall,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("Events Created", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.fillMaxWidth())
+                    Spacer(Modifier.height(8.dp))
                 }
-
-                if (isLoadingEvents && createdEvents.isEmpty()) {
+                if (uiState.isLoadingEvents) {
                     item { CircularProgressIndicator() }
-                } else if (createdEvents.isNotEmpty()) {
-                    items(createdEvents, key = { event -> event.id ?: event.hashCode() }) { event ->
-                        // You can reuse your AllEventCard or create a simpler one
+                } else if (uiState.createdEvents.isNotEmpty()) {
+                    items(uiState.createdEvents, key = { it.id!! }) { event ->
                         AllEventCard(
                             event = event,
-                            allEventsViewModel = allEventsViewModel ,
-                            onCardClick = { eventId -> onNavigateToSingleEvent(eventId)},// Pass the necessary ViewModel
+                            allEventsViewModel = allEventsViewModel,
+                            onCardClick = onNavigateToSingleEvent
                         )
-                        // Or a simpler card:
-                         //EventItemCard(event = event, onNavigateToSingleEvent = onNavigateToSingleEvent)
                     }
-                } else if (!isLoadingEvents && createdEvents.isEmpty()){
+                } else {
                     item { Text("This user hasn't created any events yet.") }
                 }
-
-                error?.let {
-                    if (!isLoadingProfile && !isLoadingEvents) { // Show general error if not specific loading
-                        item { Text("An error occurred: $it", color = MaterialTheme.colorScheme.error) }
-                    }
-                }
             }
-            item { Spacer(modifier = Modifier.height(16.dp)) } // Bottom padding
+            if (uiState.errorMessage != null && !uiState.isLoadingProfile && !uiState.isLoadingEvents) {
+                item { Text("An error occurred: ${uiState.errorMessage}", color = MaterialTheme.colorScheme.error) }
+            }
+            item { Spacer(Modifier.height(16.dp)) }
         }
     }
 }
@@ -161,120 +148,43 @@ fun UserProfileScreen(
 @Composable
 fun UserProfileHeader(
     user: User,
-    viewModel: UserProfileViewModel,
+    isFollowing: Boolean,
+    isFollowActionLoading: Boolean,
     isCurrentUserProfile: Boolean,
-    chatViewModel: ChatViewModel,
-    navController: NavController
+    onToggleFollow: () -> Unit,
+    onMessageClick: () -> Unit
 ) {
-    val isFollowing by viewModel.isFollowing.collectAsState()
-    val isFollowActionLoading by viewModel.isFollowActionLoading.collectAsState()
-    val currentUser = FirebaseAuth.getInstance().currentUser
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.fillMaxWidth()
-    ) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
         if (user.photoUrl != null) {
             Image(
-                painter = rememberAsyncImagePainter(
-                    ImageRequest.Builder(LocalContext.current)
-                        .data(data = user.photoUrl)
-                        .apply {
-                            crossfade(true)
-                            // placeholder(R.drawable.placeholder_avatar)
-                            // error(R.drawable.error_avatar)
-                        }.build()
-                ),
+                painter = rememberAsyncImagePainter(ImageRequest.Builder(LocalContext.current).data(user.photoUrl).crossfade(true).build()),
                 contentDescription = "User Profile Picture",
-                modifier = Modifier
-                    .size(120.dp)
-                    .clip(CircleShape),
+                modifier = Modifier.size(120.dp).clip(CircleShape),
                 contentScale = ContentScale.Crop
             )
         } else {
-            Icon(
-                imageVector = Icons.Default.AccountCircle,
-                contentDescription = "Default Profile Picture",
-                modifier = Modifier.size(120.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            Icon(Icons.Default.AccountCircle, "Default Profile Picture", modifier = Modifier.size(120.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        Spacer(modifier = Modifier.height(16.dp))
-        Text(
-            text = user.displayName ?: "No Name Provided",
-            style = MaterialTheme.typography.headlineMedium
-        )
-        user.email?.let {
-            Text(
-                text = it,
-                style = MaterialTheme.typography.bodyMedium,
-                color = Color.Gray
-            )
-        }
-        user.bio?.let {
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = it,
-                style = MaterialTheme.typography.bodyLarge,
-                modifier = Modifier.padding(horizontal = 16.dp)
-            )
-        }
+        Spacer(Modifier.height(16.dp))
+        Text(user.displayName ?: "No Name Provided", style = MaterialTheme.typography.headlineMedium)
+        user.email?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = Color.Gray) }
+        user.bio?.let { Spacer(Modifier.height(8.dp)); Text(it, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(horizontal = 16.dp)) }
+
         if (!isCurrentUserProfile) {
-            Spacer(modifier = Modifier.height(16.dp))
-            Button(
-                onClick = { viewModel.toggleFollowUser(user.uid) },
-                enabled = !isFollowActionLoading // Disable button during the action
-            ) {
-                if (isFollowActionLoading) {
-                    CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
-                } else {
-                    Text(if (isFollowing) "Unfollow" else "Follow")
+            Spacer(Modifier.height(16.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = onToggleFollow, enabled = !isFollowActionLoading) {
+                    if (isFollowActionLoading) {
+                        CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
+                    } else {
+                        Text(if (isFollowing) "Unfollow" else "Follow")
+                    }
                 }
-            }
-        }
-        if (!isCurrentUserProfile && currentUser != null) {
-            // This can be a single button or in a Row with the Follow button
-            Button(
-                onClick = {
-                    // 1. Prepare participant info (Your code was already correct here)
-                    val currentUserInfo = ParticipantInfo(
-                        name = currentUser.displayName ?: "You",
-                        imageUrl = currentUser.photoUrl?.toString()
-                    )
-                    val profileUserInfo = ParticipantInfo(
-                        name = user.displayName ?: "User",
-                        imageUrl = user.photoUrl
-                    )
-
-                    // --- START OF NEW LOGIC ---
-
-                    // 2. Create the deterministic chatId by sorting the UIDs
-                    val participantIds = listOf(currentUser.uid, user.uid).sorted()
-                    val chatId = participantIds.joinToString(separator = "_")
-
-                    // 3. Prepare the details map for the ViewModel
-                    val participantDetails = mapOf(
-                        currentUser.uid to currentUserInfo,
-                        user.uid to profileUserInfo
-                    )
-
-                    // 4. Call the prepare function in the SHARED chatViewModel
-                    //    (This chatViewModel must be passed into UserProfileHeader)
-                    chatViewModel.prepareForNewChat(participantDetails)
-
-                    // 5. Navigate to the conversation screen with the generated chatId
-                    try {
-                        navController.navigate("conversation/$chatId")
-                    }
-                    catch (Exception: Exception){
-                        Log.e("UserProfileScreen", "Error navigating to conversation: $Exception")
-                    }
-                    // --- END OF NEW LOGIC ---
-                },
-                modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
-            ) {
-                Icon(Icons.Default.Email, contentDescription = "Message")
-                Spacer(Modifier.width(8.dp))
-                Text("Message")
+                Button(onClick = onMessageClick) {
+                    Icon(Icons.Default.Email, contentDescription = "Message")
+                    Spacer(Modifier.width(8.dp))
+                    Text("Message")
+                }
             }
         }
     }

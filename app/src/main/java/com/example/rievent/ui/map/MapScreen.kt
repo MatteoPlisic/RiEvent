@@ -31,9 +31,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -58,35 +56,27 @@ import java.time.format.DateTimeFormatter
 @Composable
 fun MapScreen(
     viewModel: MapViewModel = viewModel(),
-    allEventsViewModel: AllEventsViewModel = viewModel(),
+    allEventsViewModel: AllEventsViewModel = viewModel(), // Still needed for AllEventCard
     navController: NavController,
 ) {
-    val allMapEvents by viewModel.allMapEvents.collectAsState()
-    val visibleEvents by viewModel.visibleEvents.collectAsState()
-    val isLoading by viewModel.isLoading.collectAsState()
-    val errorMessage by viewModel.errorMessage.collectAsState()
-    val selectedEventId by viewModel.selectedEventId.collectAsState()
-    val selectedDate by viewModel.selectedDate.collectAsState()
+    // The UI now collects a single, comprehensive state object.
+    val uiState by viewModel.uiState.collectAsState()
 
-    // --- Date Picker States and Dialog ---
-    var showDatePickerDialog by remember { mutableStateOf(false) }
     val datePickerState = rememberDatePickerState()
     val dateFormatter = remember { DateTimeFormatter.ofPattern("dd MMM yyyy") }
 
-    if (showDatePickerDialog) {
+    if (uiState.isDatePickerDialogVisible) {
         DatePickerDialog(
-            onDismissRequest = { showDatePickerDialog = false },
+            onDismissRequest = { viewModel.onDatePickerDialogToggled(false) },
             confirmButton = {
                 TextButton(onClick = {
-                    showDatePickerDialog = false
                     datePickerState.selectedDateMillis?.let {
-                        val newDate = Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalDate()
-                        viewModel.onDateSelected(newDate)
-                    }
+                        viewModel.onDateSelected(Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalDate())
+                    } ?: viewModel.onDatePickerDialogToggled(false)
                 }) { Text("OK") }
             },
             dismissButton = {
-                TextButton(onClick = { showDatePickerDialog = false }) { Text("Cancel") }
+                TextButton(onClick = { viewModel.onDatePickerDialogToggled(false) }) { Text("Cancel") }
             }
         ) {
             DatePicker(state = datePickerState)
@@ -98,80 +88,52 @@ fun MapScreen(
     }
     val listState = rememberLazyListState()
 
-    val clusterItems = remember(allMapEvents) {
-        allMapEvents.map { EventClusterItem(it) }
+    // The cluster items are now derived directly from the uiState
+    val clusterItems = remember(uiState.allMapEvents) {
+        uiState.allMapEvents.map { EventClusterItem(it) }
     }
 
-    LaunchedEffect(allMapEvents) {
-        if (allMapEvents.isNotEmpty()) {
-            cameraPositionState.projection?.visibleRegion?.latLngBounds?.let { bounds ->
-                viewModel.updateVisibleEvents(bounds)
-            }
-        }
-    }
-
-
-    LaunchedEffect(cameraPositionState.isMoving) {
-        if (!cameraPositionState.isMoving) {
-            cameraPositionState.projection?.visibleRegion?.latLngBounds?.let { bounds ->
-                viewModel.updateVisibleEvents(bounds)
-            }
-        } else {
-            viewModel.clearEventSelection()
-        }
-    }
-
-    LaunchedEffect(selectedEventId) {
-        selectedEventId?.let { eventId ->
-            allMapEvents.find { it.id == eventId }?.location?.let { geoPoint ->
+    // Animate camera when an event is selected
+    LaunchedEffect(uiState.selectedEventId) {
+        uiState.selectedEventId?.let { eventId ->
+            val event = uiState.allMapEvents.find { it.id == eventId }
+            event?.location?.let { geoPoint ->
                 val position = LatLng(geoPoint.latitude, geoPoint.longitude)
-                cameraPositionState.animate(
-                    update = CameraUpdateFactory.newLatLngZoom(position, 15f),
-                    durationMs = 1000
-                )
+                cameraPositionState.animate(CameraUpdateFactory.newLatLngZoom(position, 15f), 1000)
             }
         }
     }
 
-    Drawer(
-        title = "Event Map",
-        navController = navController,
-        gesturesEnabled = false,
-    ) { drawerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(drawerPadding)
-        ) {
-            // --- Date Filter TextField ---
+    // Update visible events when the camera stops moving
+    LaunchedEffect(cameraPositionState.isMoving) {
+        if (cameraPositionState.isMoving) {
+            viewModel.onMapStartMoving()
+        } else {
+            cameraPositionState.projection?.visibleRegion?.latLngBounds?.let { bounds ->
+                viewModel.onMapMoved(bounds)
+            }
+        }
+    }
+
+    Drawer(title = "Event Map", navController = navController, gesturesEnabled = false) { drawerPadding ->
+        Column(modifier = Modifier.fillMaxSize().padding(drawerPadding)) {
+            // Date Filter TextField
             OutlinedTextField(
-                value = selectedDate?.format(dateFormatter) ?: "Any Date",
-                onValueChange = {},
-                readOnly = true,
-                label = { Text("Filter by Date") },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
-                    .clickable { showDatePickerDialog = true },
+                value = uiState.selectedDate?.format(dateFormatter) ?: "Any Date",
+                onValueChange = {}, readOnly = true, label = { Text("Filter by Date") },
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
+                    .clickable { viewModel.onDatePickerDialogToggled(true) },
                 trailingIcon = {
-                    if (selectedDate != null) {
-                        IconButton(onClick = { viewModel.onDateSelected(null) }) {
-                            Icon(Icons.Filled.Clear, "Clear Date Filter")
-                        }
+                    if (uiState.selectedDate != null) {
+                        IconButton(onClick = { viewModel.onDateSelected(null) }) { Icon(Icons.Filled.Clear, "Clear Date Filter") }
                     } else {
-                        IconButton(onClick = { showDatePickerDialog = true }) {
-                            Icon(Icons.Filled.DateRange, "Select Date")
-                        }
+                        IconButton(onClick = { viewModel.onDatePickerDialogToggled(true) }) { Icon(Icons.Filled.DateRange, "Select Date") }
                     }
                 }
             )
 
-            // --- Map Component ---
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
-            ) {
+            // Map Component
+            Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
                 GoogleMap(
                     modifier = Modifier.fillMaxSize(),
                     cameraPositionState = cameraPositionState,
@@ -179,46 +141,33 @@ fun MapScreen(
                 ) {
                     Clustering(
                         items = clusterItems,
-                        onClusterItemInfoWindowClick = { item ->
-                            item.event.id?.let { navController.navigate("singleEvent/$it") }
-                        },
-                        onClusterItemClick = { item ->
-                            viewModel.onEventCardSelected(item.event.id)
-                            false
-                        },
-                        onClusterClick = { false }
+                        onClusterItemInfoWindowClick = { item -> item.event.id?.let { navController.navigate("singleEvent/$it") } },
+                        onClusterItemClick = { item -> viewModel.onEventCardSelected(item.event.id); false },
                     )
                 }
             }
 
-            // --- List Component ---
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
-                contentAlignment = Alignment.Center
-            ) {
-                if (isLoading && allMapEvents.isEmpty()) {
+            // List Component
+            Box(modifier = Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
+                if (uiState.isLoading) {
                     CircularProgressIndicator()
-                } else if (errorMessage != null) {
-                    Text("Error: $errorMessage", color = MaterialTheme.colorScheme.error)
-                } else if (visibleEvents.isEmpty()) {
+                } else if (uiState.errorMessage != null) {
+                    Text("Error: ${uiState.errorMessage}", color = MaterialTheme.colorScheme.error)
+                } else if (uiState.visibleEvents.isEmpty()) {
                     Text(
-                        if (selectedDate != null && allMapEvents.isEmpty()) "No events found for this date."
+                        if (uiState.selectedDate != null && uiState.allMapEvents.isEmpty()) "No events found for this date."
                         else "No events found in this map area."
                     )
                 } else {
                     LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        state = listState,
-                        contentPadding = PaddingValues(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                        modifier = Modifier.fillMaxSize(), state = listState,
+                        contentPadding = PaddingValues(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        items(visibleEvents, key = { it.id!! }) { event ->
+                        items(uiState.visibleEvents, key = { it.id!! }) { event ->
                             Box(
                                 modifier = Modifier.border(
-                                    width = if (event.id == selectedEventId) 2.dp else 0.dp,
-                                    color = if (event.id == selectedEventId) MaterialTheme.colorScheme.primary else Color.Transparent
+                                    width = if (event.id == uiState.selectedEventId) 2.dp else 0.dp,
+                                    color = if (event.id == uiState.selectedEventId) MaterialTheme.colorScheme.primary else Color.Transparent
                                 )
                             ) {
                                 AllEventCard(

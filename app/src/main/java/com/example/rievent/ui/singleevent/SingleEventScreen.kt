@@ -1,15 +1,47 @@
 package com.example.rievent.ui.singleevent
 
-
-import android.util.Log
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Divider
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -17,23 +49,17 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.rememberAsyncImagePainter
+import coil.request.ImageRequest
+import com.example.rievent.models.EventComment
+import com.example.rievent.models.EventRSPV
+import com.example.rievent.ui.allevents.RsvpStatus
 import com.google.firebase.auth.FirebaseAuth
 import java.text.SimpleDateFormat
 import java.util.Locale
-import java.util.TimeZone
-
-import com.example.rievent.models.EventComment
-import com.example.rievent.models.EventRSPV
-import coil.request.ImageRequest
-
-// Import data classes if they are in a different package
-// import com.example.rievent.models.EventRSPV
-// import com.example.rievent.models.EventRating
-// import com.example.rievent.models.EventComment
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -41,19 +67,10 @@ fun SingleEventScreen(
     eventId: String,
     viewModel: SingleEventViewModel = viewModel(),
     onBack: () -> Unit,
-    onNavigateToUserProfile: (String) -> Unit,
-    // Add other navigation callbacks if needed
+    onNavigateToUserProfile: (String) -> Unit
 ) {
-    val event by viewModel.event.collectAsState()
-    val rsvp by viewModel.eventRsvp.collectAsState()
-    val ratings by viewModel.ratings.collectAsState()
-    val ratingsSize by viewModel.ratingsSize.collectAsState()
-    val averageRating by viewModel.averageRating.collectAsState()
-    val userRating by viewModel.userRating.collectAsState()
-    val comments by viewModel.comments.collectAsState()
-    val isLoading by viewModel.isLoading.collectAsState()
-    val error by viewModel.error.collectAsState()
-
+    // The UI now collects a single, comprehensive state object.
+    val uiState by viewModel.uiState.collectAsState()
     val currentUid = remember { FirebaseAuth.getInstance().currentUser?.uid }
 
     LaunchedEffect(eventId) {
@@ -65,132 +82,151 @@ fun SingleEventScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(event?.name ?: "Event Details") },
+                title = { Text(uiState.event?.name ?: "Event Details") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(
+                            Icons.Filled.ArrowBack,
+                            "Back"
+                        )
                     }
                 }
             )
         }
     ) { paddingValues ->
-        if (isLoading && event == null) { // Show loading only if event data is not yet available
-            Box(modifier = Modifier.fillMaxSize().padding(paddingValues), contentAlignment = Alignment.Center) {
+        if (uiState.isLoading && uiState.event == null) {
+            Box(
+                Modifier.fillMaxSize().padding(paddingValues),
+                contentAlignment = Alignment.Center
+            ) {
                 CircularProgressIndicator()
             }
-        } else if (event == null) {
-            Box(modifier = Modifier.fillMaxSize().padding(paddingValues), contentAlignment = Alignment.Center) {
-                Text(error ?: "Event not found or error loading.", color = MaterialTheme.colorScheme.error)
+        } else if (uiState.event == null) {
+            Box(
+                Modifier.fillMaxSize().padding(paddingValues),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    uiState.errorMessage ?: "Event not found.",
+                    color = MaterialTheme.colorScheme.error
+                )
             }
         } else {
-            event?.let { currentEvent ->
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(paddingValues)
-                        .padding(horizontal = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    // Event Image (if available)
-                    currentEvent.imageUrl?.let { imageUrl ->
-                        item {
-                            Image(
-                                painter = rememberAsyncImagePainter(
-                                    ImageRequest.Builder(LocalContext.current)
-                                        .data(data = imageUrl)
-                                        .apply {
-                                            crossfade(true)
-                                            // placeholder(R.drawable.placeholder_image) // Add placeholder
-                                            // error(R.drawable.error_image) // Add error image
-                                        }.build()
-                                ),
-                                contentDescription = "Event Image",
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(200.dp)
-                                    .clip(MaterialTheme.shapes.medium),
-                                contentScale = ContentScale.Crop
-                            )
-                        }
-                    }
-
-                    // Event Title and Basic Info
+            val event = uiState.event!!
+            LazyColumn(
+                modifier = Modifier.fillMaxSize().padding(paddingValues)
+                    .padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(24.dp) // Increased spacing
+            ) {
+                event.imageUrl?.let {
                     item {
-                        Text(currentEvent.name, style = MaterialTheme.typography.headlineSmall)
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("By: ${currentEvent.ownerName}", style = MaterialTheme.typography.titleSmall)
-                        Spacer(modifier = Modifier.width(8.dp)) // Add some space between text and button
-                        Button(
-                            onClick = {
-                                onNavigateToUserProfile(currentEvent.ownerId) // Example navigation
-                            }, modifier = Modifier.height(30.dp) ){
-
-                            Icon(
-                                imageVector = Icons.Filled.Person, // Or Icons.Filled.Info, etc.
-                                contentDescription = "View Owner Profile",
-                                modifier = Modifier.size(ButtonDefaults.IconSize) // Default icon size for buttons
-                            )
-                        }}
-                        currentEvent.startTime?.let {
-                            val formatter = remember { SimpleDateFormat("EEE, dd MMM yyyy, hh:mm a", Locale.getDefault()).apply { timeZone = TimeZone.getDefault()} }
-                            Text("Starts: ${formatter.format(it.toDate())}", style = MaterialTheme.typography.bodyMedium)
-                        }
-                        currentEvent.endTime?.let {
-                            val formatter = remember { SimpleDateFormat("EEE, dd MMM yyyy, hh:mm a", Locale.getDefault()).apply { timeZone = TimeZone.getDefault()} }
-                            Text("Ends: ${formatter.format(it.toDate())}", style = MaterialTheme.typography.bodyMedium)
-                        }
-                        Text("Category: ${currentEvent.category}", style = MaterialTheme.typography.bodyMedium)
-                        Text(currentEvent.description, style = MaterialTheme.typography.bodyLarge)
-                        Text("Address: ${currentEvent.address}", style = MaterialTheme.typography.bodyMedium)
-                    }
-
-                    // RSVP Section
-                    item {
-                        RsvpSection(
-                            rsvpData = rsvp,
-                            currentUserId = currentUid,
-                            onRsvpChanged = { newStatus ->
-                                viewModel.updateRsvp(currentEvent.id!!, newStatus)
-                            }
+                        Image(
+                            painter = rememberAsyncImagePainter(
+                                ImageRequest.Builder(LocalContext.current).data(data = it)
+                                    .crossfade(true).build()
+                            ),
+                            contentDescription = "Event Image",
+                            modifier = Modifier.fillMaxWidth().height(200.dp)
+                                .clip(MaterialTheme.shapes.medium),
+                            contentScale = ContentScale.Crop
                         )
                     }
-
-                    // Rating Section
-                    item {
-
-                        RatingSection(
-                            averageRating = averageRating,
-                            totalRatings = ratingsSize,
-                            currentUserRatingValue = userRating?.rating,
-                            onRatingSubmitted = { ratingValue ->
-                                viewModel.submitRating(currentEvent.id!!, ratingValue)
-                            },
-                            enabledRatingButton = viewModel.enabledRatingButton.collectAsState().value
-                        )
-                    }
-
-                    // Comments Section
-                    item {
-                        CommentsSection(
-                            comments = comments,
-                            onAddComment = { commentText ->
-                                viewModel.addComment(currentEvent.id!!, commentText)
-                            }
-                        )
-                    }
-
-                    // Error display at the bottom
-                    error?.let {
-                        item {
-                            Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(vertical = 8.dp))
-                        }
-                    }
-                    item { Spacer(modifier = Modifier.height(16.dp)) } // Bottom padding
                 }
+                item {
+                    Text(event.name, style = MaterialTheme.typography.headlineMedium)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("By: ${event.ownerName}", style = MaterialTheme.typography.titleSmall)
+                        Spacer(Modifier.width(8.dp))
+                        IconButton(
+                            onClick = { onNavigateToUserProfile(event.ownerId) },
+                            modifier = Modifier.size(30.dp)
+                        ) {
+                            Icon(Icons.Filled.Person, "View Owner Profile")
+                        }
+                    }
+                    val formatter = remember {
+                        SimpleDateFormat(
+                            "EEE, dd MMM yyyy, hh:mm a",
+                            Locale.getDefault()
+                        )
+                    }
+                    event.startTime?.let {
+                        Text(
+                            "Starts: ${formatter.format(it.toDate())}",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+                    event.endTime?.let {
+                        Text(
+                            "Ends: ${formatter.format(it.toDate())}",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+                    Text("Category: ${event.category}", style = MaterialTheme.typography.bodyMedium)
+                    Text(
+                        event.description,
+                        style = MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
+                    Text(
+                        "Address: ${event.address}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                }
+                item { Divider() }
+                item {
+                    RsvpSection(
+                        rsvpData = uiState.rsvp,
+                        currentUserId = currentUid,
+                        onRsvpChanged = { newStatus -> viewModel.updateRsvp(event.id!!, newStatus) }
+                    )
+                }
+                item { Divider() }
+                item {
+                    RatingSection(
+                        averageRating = uiState.averageRating,
+                        totalRatings = uiState.totalRatings,
+                        currentUserRatingValue = uiState.userRating,
+                        isRatingEnabled = uiState.isRatingEnabled,
+                        isRatingDialogVisible = uiState.isRatingDialogVisible,
+                        onRatingSubmitted = { ratingValue ->
+                            viewModel.submitRating(
+                                event.id!!,
+                                ratingValue
+                            )
+                        },
+                        onDialogToggled = { viewModel.onRatingDialogToggled(it) }
+                    )
+                }
+                item { Divider() }
+                item {
+                    CommentsSection(
+                        comments = uiState.comments,
+                        commentText = uiState.newCommentText,
+                        onCommentTextChange = { viewModel.onNewCommentChange(it) },
+                        onAddComment = { viewModel.addComment(event.id!!) }
+                    )
+                }
+                uiState.errorMessage?.let {
+                    item {
+                        Text(
+                            it,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
+                item { Spacer(Modifier.height(16.dp)) }
             }
         }
     }
 }
+
+// In SingleEventScreen.kt
+
+
+
+// ...
 
 @Composable
 fun RsvpSection(
@@ -200,6 +236,7 @@ fun RsvpSection(
 ) {
     val comingCount = rsvpData?.coming_users?.size ?: 0
     val maybeCount = rsvpData?.maybe_users?.size ?: 0
+    // [FIX] Get the not coming count as well
     val notComingCount = rsvpData?.not_coming_users?.size ?: 0
 
     val userIsComing = rsvpData?.coming_users?.any { it.userId == currentUserId } == true
@@ -211,131 +248,101 @@ fun RsvpSection(
         Spacer(modifier = Modifier.height(8.dp))
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceEvenly
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Button(
                 onClick = { onRsvpChanged(RsvpStatus.COMING) },
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = if (userIsComing) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primaryContainer
+                    containerColor = if (userIsComing) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
                 ),
                 modifier = Modifier.weight(1f)
-            ) { Text("Coming (${comingCount})") }
-            Spacer(modifier = Modifier.width(8.dp))
+            ) { Text("Coming ($comingCount)") }
+            Spacer(modifier = Modifier.width(1.dp))
             Button(
                 onClick = { onRsvpChanged(RsvpStatus.MAYBE) },
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = if (userIsMaybe) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.secondaryContainer
+                    containerColor = if (userIsMaybe) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.surfaceVariant
                 ),
                 modifier = Modifier.weight(1f)
-            ) { Text("Maybe (${maybeCount})") }
-            Spacer(modifier = Modifier.width(8.dp))
+            ) { Text("Maybe ($maybeCount)") }
+            Spacer(modifier = Modifier.width(2.dp))
             Button(
                 onClick = { onRsvpChanged(RsvpStatus.NOT_COMING) },
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = if (userIsNotComing) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.errorContainer
+                    containerColor = if (userIsNotComing) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.surfaceVariant
                 ),
                 modifier = Modifier.weight(1f)
-            ) { Text("Not Coming (${notComingCount})") }
+            ) {
+                // [THE FIX]
+                // Add textAlign and reduce fontSize slightly to ensure it fits.
+                Text(
+                    text = "Not Coming (${notComingCount})",
+                    textAlign = TextAlign.Center,
+                    fontSize = MaterialTheme.typography.labelMedium.fontSize // Use a slightly smaller, standard font size
+                )
+            }
         }
     }
 }
 
 @Composable
 fun RatingSection(
-    averageRating: Float,
-    totalRatings: Int,
-    currentUserRatingValue: Float?,
-    onRatingSubmitted: (Float) -> Unit,
-    enabledRatingButton: Boolean
+    averageRating: Float, totalRatings: Int, currentUserRatingValue: Float?,
+    isRatingEnabled: Boolean, isRatingDialogVisible: Boolean,
+    onRatingSubmitted: (Float) -> Unit, onDialogToggled: (Boolean) -> Unit
 ) {
-    var showRatingDialog by remember { mutableStateOf(false) }
-    var selectedUserRating by remember { mutableStateOf(currentUserRatingValue ?: 3f) } // Default to 3 for dialog
-
-    LaunchedEffect(currentUserRatingValue) { // Update dialog's rating if external rating changes
-        currentUserRatingValue?.let { selectedUserRating = it }
-    }
-
+    var selectedUserRating by remember { mutableStateOf(currentUserRatingValue ?: 3f) }
+    LaunchedEffect(currentUserRatingValue) { currentUserRatingValue?.let { selectedUserRating = it } }
 
     Column {
         Text("Ratings", style = MaterialTheme.typography.titleMedium)
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Filled.Star, contentDescription = "Average Rating", tint = Color(0xFFFFC107)) // Yellow star
+            Icon(Icons.Filled.Star, "Average Rating", tint = Color(0xFFFFC107))
             Text(String.format(Locale.US, "%.1f", averageRating), style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
             Text(" ($totalRatings ratings)", style = MaterialTheme.typography.bodySmall)
         }
-        Spacer(modifier = Modifier.height(8.dp))
-        Button(onClick = { showRatingDialog = enabledRatingButton }, enabled = enabledRatingButton) {
+        Spacer(Modifier.height(8.dp))
+        Button(onClick = { onDialogToggled(true) }, enabled = isRatingEnabled) {
             Text(if (currentUserRatingValue != null) "Update Your Rating" else "Rate this Event")
         }
     }
 
-    if (showRatingDialog) {
+    if (isRatingDialogVisible) {
         AlertDialog(
-            onDismissRequest = { showRatingDialog = false },
+            onDismissRequest = { onDialogToggled(false) },
             title = { Text("Rate this Event") },
             text = {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text("Your rating: ${String.format(Locale.US, "%.1f", selectedUserRating)}")
-                    Slider(
-                        value = selectedUserRating,
-                        onValueChange = { selectedUserRating = it },
-                        valueRange = 1f..5f,
-                        steps = 8 // 0.5 steps ( (5-1) / 0.5 = 8 steps )
-                    )
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("1.0")
-                        Text("5.0")
-                    }
+                    Slider(value = selectedUserRating, onValueChange = { selectedUserRating = it }, valueRange = 1f..5f, steps = 8)
                 }
             },
-            confirmButton = {
-                TextButton(onClick = {
-                    onRatingSubmitted(selectedUserRating)
-                    showRatingDialog = false
-                }) { Text("Submit") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showRatingDialog = false }) { Text("Cancel") }
-            }
+            confirmButton = { TextButton(onClick = { onRatingSubmitted(selectedUserRating) }) { Text("Submit") } },
+            dismissButton = { TextButton(onClick = { onDialogToggled(false) }) { Text("Cancel") } }
         )
     }
 }
 
 @Composable
 fun CommentsSection(
-    comments: List<EventComment>,
-    onAddComment: (String) -> Unit
+    comments: List<EventComment>, commentText: String,
+    onCommentTextChange: (String) -> Unit, onAddComment: () -> Unit
 ) {
-    var commentInput by remember { mutableStateOf(TextFieldValue("")) }
-
     Column {
         Text("Comments", style = MaterialTheme.typography.titleMedium)
-        Spacer(modifier = Modifier.height(8.dp))
-
+        Spacer(Modifier.height(8.dp))
         OutlinedTextField(
-            value = commentInput,
-            onValueChange = { commentInput = it },
+            value = commentText,
+            onValueChange = onCommentTextChange,
             label = { Text("Add a comment...") },
             modifier = Modifier.fillMaxWidth(),
-            trailingIcon = {
-                IconButton(onClick = {
-                    if (commentInput.text.isNotBlank()) {
-                        onAddComment(commentInput.text)
-                        commentInput = TextFieldValue("") // Clear input
-                    }
-                }) {
-                    Icon(Icons.Filled.Send, contentDescription = "Post Comment")
-                }
-            }
+            trailingIcon = { IconButton(onClick = onAddComment) { Icon(Icons.Filled.Send, "Post Comment") } }
         )
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(Modifier.height(16.dp))
         if (comments.isEmpty()) {
-            Text("No comments yet. Be the first to comment!", style = MaterialTheme.typography.bodySmall)
+            Text("No comments yet. Be the first!", style = MaterialTheme.typography.bodySmall)
         } else {
-            comments.forEach { comment ->
-                CommentItem(comment)
-                Divider()
-            }
+            comments.forEach { comment -> CommentItem(comment); Divider() }
         }
     }
 }
@@ -343,23 +350,31 @@ fun CommentsSection(
 @Composable
 fun CommentItem(comment: EventComment) {
     val formatter = remember { SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault()) }
-    Row(modifier = Modifier.padding(vertical = 8.dp)) {
-        comment.profileImageUrl?.let {
+    Row(Modifier.padding(vertical = 8.dp)) {
+
+        if (comment.profileImageUrl != null) {
             Image(
-                painter = rememberAsyncImagePainter(it),
+                painter = rememberAsyncImagePainter(model = comment.profileImageUrl),
                 contentDescription = "${comment.userName}'s profile picture",
                 modifier = Modifier
                     .size(40.dp)
-                    .clip(CircleShape)
+                    .clip(CircleShape),
+                contentScale = ContentScale.Crop
             )
-        } ?: Icon(
-            Icons.Filled.AccountCircle,
-            contentDescription = "User Avatar",
-            modifier = Modifier.size(40.dp)
-        )
+        } else {
+
+            Icon(
+                imageVector = Icons.Default.AccountCircle,
+                contentDescription = "Default user avatar",
+                modifier = Modifier.size(40.dp),
+
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+
         Spacer(modifier = Modifier.width(8.dp))
         Column {
-            Text(comment.userName, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
+            Text(comment.userName, fontWeight = FontWeight.Bold)
             Text(comment.commentText, style = MaterialTheme.typography.bodySmall)
             Text(formatter.format(comment.createdAt.toDate()), style = MaterialTheme.typography.labelSmall, color = Color.Gray)
         }

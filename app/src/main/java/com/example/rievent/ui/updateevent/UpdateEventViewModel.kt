@@ -1,193 +1,227 @@
 package com.example.rievent.ui.updateevent
 
-import Event // Assuming this is your data class: data class Event(var id: String? = null, ..., var imageUrl: String? = null)
+import Event
 import android.app.Application
 import android.net.Uri
-import androidx.lifecycle.AndroidViewModel // Changed to AndroidViewModel for Application context
+import android.util.Log
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.google.android.gms.common.api.ApiException
+import com.google.android.gms.maps.model.LatLng
 import com.google.android.libraries.places.api.Places
 import com.google.android.libraries.places.api.model.AutocompletePrediction
-import com.google.android.libraries.places.api.model.AutocompleteSessionToken
 import com.google.android.libraries.places.api.model.Place
-import com.google.android.libraries.places.api.model.TypeFilter
+import com.google.android.libraries.places.api.model.RectangularBounds
 import com.google.android.libraries.places.api.net.FetchPlaceRequest
 import com.google.android.libraries.places.api.net.FindAutocompletePredictionsRequest
 import com.google.android.libraries.places.api.net.PlacesClient
+import com.google.firebase.Timestamp
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.GeoPoint
 import com.google.firebase.storage.FirebaseStorage
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
+import java.text.SimpleDateFormat
+import java.util.Locale
 import java.util.UUID
 
-
-class UpdateEventViewModel(application: Application) : AndroidViewModel(application) { // Changed to AndroidViewModel
+class UpdateEventViewModel(application: Application) : AndroidViewModel(application) {
     private val db = FirebaseFirestore.getInstance()
     private val storage = FirebaseStorage.getInstance()
-    private var placesClient: PlacesClient = Places.createClient(application.applicationContext)
-    private var token: AutocompleteSessionToken = AutocompleteSessionToken.newInstance()
+    private val placesClient: PlacesClient = Places.createClient(application)
 
-    private val _event = MutableStateFlow<Event?>(null)
-    val event = _event.asStateFlow()
+    private val _uiState = MutableStateFlow(UpdateEventUiState())
+    val uiState = _uiState.asStateFlow()
 
-    private val _isLoading = MutableStateFlow(false)
-    val isLoading = _isLoading.asStateFlow()
+    private var fetchPredictionsJob: Job? = null
 
-    private val _isSuccess = MutableStateFlow(false)
-    val isSuccess = _isSuccess.asStateFlow()
+    // Bounding box for Places API to bias results (optional but recommended)
+    private val primorjeGorskiKotarBounds = RectangularBounds.newInstance(
+        LatLng(44.85, 14.15),
+        LatLng(45.75, 15.05)
+    )
 
-    private val _errorMessage = MutableStateFlow<String?>(null)
-    val errorMessage = _errorMessage.asStateFlow()
-
-    // For Address Autocomplete
-    private val _addressPredictions = MutableStateFlow<List<AutocompletePrediction>>(emptyList())
-    val addressPredictions = _addressPredictions.asStateFlow()
-
-    private val _isFetchingPredictions = MutableStateFlow(false)
-    val isFetchingPredictions = _isFetchingPredictions.asStateFlow()
-
-
+    // --- DATA LOADING ---
     fun loadEvent(eventId: String) {
-        _isLoading.value = true
-        _errorMessage.value = null
-        db.collection("Event").document(eventId)
-            .get()
-            .addOnSuccessListener { doc ->
-                val loadedEvent = doc.toObject(Event::class.java)
-                if (loadedEvent != null) {
-                    _event.value = loadedEvent.copy(id = doc.id) // Ensure ID is set
-                } else {
-                    _errorMessage.value = "Event not found."
-                }
-                _isLoading.value = false
-            }
-            .addOnFailureListener {
-                _errorMessage.value = "Failed to load event: ${it.localizedMessage}"
-                _isLoading.value = false
-            }
-    }
-
-    fun updateEventWithOptionalNewImage(
-        eventData: Event,
-        newImageUri: Uri?,
-        removeCurrentImage: Boolean
-    ) {
-        if (eventData.id.isNullOrBlank()) {
-            _errorMessage.value = "Event ID is missing for update."
+        if (eventId.isBlank()) {
+            _uiState.update { it.copy(userMessage = "Event ID is missing.", isInitialLoading = false) }
             return
         }
-        _isLoading.value = true
-        _isSuccess.value = false
-        _errorMessage.value = null
+        _uiState.update { it.copy(isInitialLoading = true) }
+        viewModelScope.launch {
+            try {
+                val doc = db.collection("Event").document(eventId).get().await()
+                val loadedEvent = doc.toObject(Event::class.java)?.copy(id = doc.id)
+                if (loadedEvent != null) {
+                    populateStateFromEvent(loadedEvent)
+                } else {
+                    _uiState.update { it.copy(userMessage = "Event not found.", isInitialLoading = false) }
+                }
+            } catch (e: Exception) {
+                _uiState.update { it.copy(userMessage = "Failed to load event.", isInitialLoading = false) }
+            }
+        }
+    }
+
+    private fun populateStateFromEvent(event: Event) {
+        val dateFormatter = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+        val timeFormatter = SimpleDateFormat("HH:mm", Locale.getDefault())
+
+        _uiState.update {
+            it.copy(
+                originalEvent = event,
+                name = event.name,
+                description = event.description,
+                category = event.category,
+                startDate = event.startTime?.toDate()?.let { d -> dateFormatter.format(d) } ?: "",
+                startTime = event.startTime?.toDate()?.let { d -> timeFormatter.format(d) } ?: "",
+                endDate = event.endTime?.toDate()?.let { d -> dateFormatter.format(d) } ?: "",
+                endTime = event.endTime?.toDate()?.let { d -> timeFormatter.format(d) } ?: "",
+                displayImageUrl = event.imageUrl,
+                addressInput = event.address,
+                isInitialLoading = false // Loading is complete
+            )
+        }
+    }
+
+    // --- UI EVENT HANDLERS ---
+    fun onNameChange(name: String) { _uiState.update { it.copy(name = name) } }
+    fun onDescriptionChange(description: String) { _uiState.update { it.copy(description = description) } }
+    fun onCategoryChange(category: String) { _uiState.update { it.copy(category = category, isCategoryMenuExpanded = false) } }
+    fun onStartDateChange(date: String) { _uiState.update { it.copy(startDate = date) } }
+    fun onStartTimeChange(time: String) { _uiState.update { it.copy(startTime = time) } }
+    fun onEndDateChange(date: String) { _uiState.update { it.copy(endDate = date) } }
+    fun onEndTimeChange(time: String) { _uiState.update { it.copy(endTime = time) } }
+    fun onCategoryMenuToggled(isExpanded: Boolean) { _uiState.update { it.copy(isCategoryMenuExpanded = isExpanded) } }
+
+    fun onImageSelected(uri: Uri?) {
+        _uiState.update { it.copy(newImageUri = uri) }
+    }
+
+    fun onRemoveImage() {
+        _uiState.update { it.copy(newImageUri = null, displayImageUrl = null) }
+    }
+
+    fun onAddressInputChange(query: String) {
+        _uiState.update { it.copy(addressInput = query, selectedPlace = null) }
+        fetchAddressPredictions(query)
+    }
+
+    fun onPredictionSelected(prediction: AutocompletePrediction) {
+        _uiState.update { it.copy(isUpdating = true, showPredictionsList = false) }
+        val placeId = prediction.placeId
+        val placeFields = listOf(Place.Field.ID, Place.Field.NAME, Place.Field.ADDRESS, Place.Field.LAT_LNG)
+        val request = FetchPlaceRequest.builder(placeId, placeFields).build()
 
         viewModelScope.launch {
             try {
-                var finalImageUrl = eventData.imageUrl // Start with the current image URL
-
-                // 1. Handle image deletion if requested or if new image replaces old
-                if (removeCurrentImage || (newImageUri != null && !eventData.imageUrl.isNullOrBlank())) {
-                    eventData.imageUrl?.let { oldImageUrl ->
-                        if (oldImageUrl.startsWith("gs://")) { // Check if it's a Firebase Storage URL
-                            try {
-                                storage.getReferenceFromUrl(oldImageUrl).delete().await()
-                                finalImageUrl = null // Image removed or will be replaced
-                            } catch (e: Exception) {
-                                // Log or optionally inform user, but don't block update for this
-                                println("Error deleting old image: ${e.message}")
-                            }
-                        }
-                    }
+                val response = placesClient.fetchPlace(request).await()
+                val place = response.place
+                _uiState.update {
+                    it.copy(
+                        selectedPlace = place,
+                        addressInput = place.address ?: prediction.getPrimaryText(null).toString(),
+                        isUpdating = false,
+                        addressPredictions = emptyList()
+                    )
                 }
-
-                // 2. Handle new image upload
-                if (newImageUri != null) {
-                    val imageFileName = "event_images/${UUID.randomUUID()}"
-                    val imageRef = storage.reference.child(imageFileName)
-                    imageRef.putFile(newImageUri).await() // Upload
-                    finalImageUrl = imageRef.downloadUrl.await().toString() // Get new URL
-                }
-
-                // 3. Update event data with the final image URL
-                val eventToUpdate = eventData.copy(imageUrl = finalImageUrl)
-
-                // 4. Update Firestore document
-                db.collection("Event").document(eventData.id!!)
-                    .set(eventToUpdate)
-                    .await() // Use await for coroutine compatibility
-
-                _isSuccess.value = true
             } catch (e: Exception) {
-                _errorMessage.value = "Update failed: ${e.localizedMessage}"
-            } finally {
-                _isLoading.value = false
+                _uiState.update { it.copy(userMessage = "Could not get place details.", isUpdating = false) }
             }
         }
     }
 
-
-    fun resetState() {
-        _isSuccess.value = false
-        _errorMessage.value = null
-        // _event.value = null // Optional: clear event details after successful update if navigating away
-        clearAddressSearchStates() // Clear address predictions too
-    }
-
-    // --- Address Autocomplete Methods ---
-    fun fetchAddressPredictions(query: String) {
-        if (query.isBlank()) {
-            _addressPredictions.value = emptyList()
-            _isFetchingPredictions.value = false
-            return
+    fun onAddressFocusChanged(isFocused: Boolean) {
+        val currentState = _uiState.value
+        if (isFocused && currentState.addressInput.isNotBlank() && currentState.addressPredictions.isNotEmpty()) {
+            _uiState.update { it.copy(showPredictionsList = true) }
+        } else if (!isFocused) {
+            viewModelScope.launch {
+                delay(200)
+                _uiState.update { it.copy(showPredictionsList = false) }
+            }
         }
-        _isFetchingPredictions.value = true
-
-        val request = FindAutocompletePredictionsRequest.builder()
-            .setSessionToken(token)
-            .setQuery(query)
-            .setTypeFilter(TypeFilter.ADDRESS) // Or other filters as needed
-            .build()
-
-        placesClient.findAutocompletePredictions(request)
-            .addOnSuccessListener { response ->
-                _addressPredictions.value = response.autocompletePredictions
-                _isFetchingPredictions.value = false
-            }
-            .addOnFailureListener { exception ->
-                if (exception is ApiException) {
-                    _errorMessage.value = "Place API error: ${exception.statusCode}"
-                } else {
-                    _errorMessage.value = "Failed to fetch address predictions: ${exception.localizedMessage}"
-                }
-                _addressPredictions.value = emptyList()
-                _isFetchingPredictions.value = false
-            }
     }
 
-    fun fetchPlaceDetails(prediction: AutocompletePrediction, onResult: (Place) -> Unit) {
-        val placeFields = listOf(Place.Field.ID, Place.Field.ADDRESS, Place.Field.LAT_LNG)
-        val request = FetchPlaceRequest.builder(prediction.placeId, placeFields)
-            .setSessionToken(token) // Reuse the same token
-            .build()
-
-        placesClient.fetchPlace(request)
-            .addOnSuccessListener { response ->
-                onResult(response.place)
-                token = AutocompleteSessionToken.newInstance() // Refresh token after use for details
-            }
-            .addOnFailureListener { exception ->
-                if (exception is ApiException) {
-                    _errorMessage.value = "Place Details API error: ${exception.statusCode}"
-                } else {
-                    _errorMessage.value = "Failed to fetch place details: ${exception.localizedMessage}"
-                }
-            }
+    fun onClearAddress() {
+        _uiState.update { it.copy(addressInput = "", selectedPlace = null, addressPredictions = emptyList(), showPredictionsList = false) }
+        fetchPredictionsJob?.cancel()
     }
 
-    fun clearAddressSearchStates() {
-        _addressPredictions.value = emptyList()
-        _isFetchingPredictions.value = false
-        // Don't reset the token here, it should be valid for a session
+    fun onUpdateNavigated() {
+        _uiState.update { it.copy(updateSuccess = false) }
+    }
+
+    // --- MAIN UPDATE LOGIC ---
+    fun updateEvent() {
+        val currentState = _uiState.value
+        val originalEvent = currentState.originalEvent ?: return Unit.also {
+            _uiState.update { it.copy(userMessage = "Original event data is missing.") }
+        }
+        _uiState.update { it.copy(isUpdating = true, userMessage = null) }
+        viewModelScope.launch {
+            try {
+                var finalImageUrl = originalEvent.imageUrl
+                val imageRemoved = currentState.displayImageUrl == null && currentState.newImageUri == null && originalEvent.imageUrl != null
+
+                if (imageRemoved || (currentState.newImageUri != null && !originalEvent.imageUrl.isNullOrBlank())) {
+                    originalEvent.imageUrl?.let { oldUrl ->
+                        try { storage.getReferenceFromUrl(oldUrl).delete().await() }
+                        catch (e: Exception) { Log.w("UpdateEventVM", "Failed to delete old image, proceeding anyway.", e) }
+                    }
+                    finalImageUrl = null
+                }
+
+                // --- THIS IS THE CORRECTED BLOCK ---
+                if (currentState.newImageUri != null) {
+                    val fileName = "event_images/${UUID.randomUUID()}"
+
+                    // [THE FIX] Define imageRef using your storage instance and a child path.
+                    val imageRef = storage.reference.child(fileName)
+
+                    imageRef.putFile(currentState.newImageUri).await()
+                    finalImageUrl = imageRef.downloadUrl.await().toString()
+                }
+                // --- END OF CORRECTION ---
+
+                val formatter = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
+                val startTs = runCatching { Timestamp(formatter.parse("${currentState.startDate} ${currentState.startTime}")!!) }.getOrNull()
+                val endTs = runCatching { Timestamp(formatter.parse("${currentState.endDate} ${currentState.endTime}")!!) }.getOrNull()
+                val geoPt = currentState.selectedPlace?.latLng?.let { GeoPoint(it.latitude, it.longitude) } ?: originalEvent.location
+
+                val updatedEvent = originalEvent.copy(
+                    name = currentState.name, description = currentState.description, category = currentState.category,
+                    startTime = startTs, endTime = endTs, address = currentState.addressInput,
+                    location = geoPt, imageUrl = finalImageUrl
+                )
+
+                db.collection("Event").document(originalEvent.id!!).set(updatedEvent).await()
+                _uiState.update { it.copy(isUpdating = false, updateSuccess = true) }
+            } catch (e: Exception) {
+                _uiState.update { it.copy(isUpdating = false, userMessage = "Update failed: ${e.message}") }
+            }
+        }
+    }
+
+    private fun fetchAddressPredictions(query: String) {
+        fetchPredictionsJob?.cancel()
+        if (query.isBlank()) { _uiState.update { it.copy(addressPredictions = emptyList()) }; return }
+        fetchPredictionsJob = viewModelScope.launch {
+            delay(300)
+            _uiState.update { it.copy(isFetchingPredictions = true) }
+            val request = FindAutocompletePredictionsRequest.builder()
+                .setCountries("HR").setLocationRestriction(primorjeGorskiKotarBounds)
+                .setQuery(query).build()
+            try {
+                val response = placesClient.findAutocompletePredictions(request).await()
+                _uiState.update { it.copy(addressPredictions = response.autocompletePredictions, isFetchingPredictions = false) }
+            } catch (e: Exception) {
+                _uiState.update { it.copy(addressPredictions = emptyList(), isFetchingPredictions = false) }
+            }
+        }
     }
 }
