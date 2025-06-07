@@ -124,8 +124,8 @@
 
 
     <!-- Strings for HomeScreen -->
-    <string name="home_screen_welcome_title">Welcome Home!</string>
-    <string name="home_screen_logged_in_message">You\'re now logged in.</string>
+    <string name="home_screen_welcome_title">Welcome to RiEvent! Explore events near you.</string>
+    <string name="home_screen_logged_in_message">You\'re now logged in. Enjoy!</string>
     <string name="home_screen_logout_button">Log out</string>
 
 

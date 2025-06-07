@@ -209,18 +209,32 @@ class UpdateEventViewModel(application: Application) : AndroidViewModel(applicat
 
     private fun fetchAddressPredictions(query: String) {
         fetchPredictionsJob?.cancel()
-        if (query.isBlank()) { _uiState.update { it.copy(addressPredictions = emptyList()) }; return }
+        if (query.isBlank() || query.length < 2) {
+            _uiState.update { it.copy(addressPredictions = emptyList(), isFetchingPredictions = false, showPredictionsList = false) }
+            return
+        }
         fetchPredictionsJob = viewModelScope.launch {
             delay(300)
-            _uiState.update { it.copy(isFetchingPredictions = true) }
+            _uiState.update { it.copy(isFetchingPredictions = true, userMessage = null) }
             val request = FindAutocompletePredictionsRequest.builder()
-                .setCountries("HR").setLocationRestriction(primorjeGorskiKotarBounds)
-                .setQuery(query).build()
+                .setCountries("HR")
+                .setLocationRestriction(primorjeGorskiKotarBounds)
+                .setQuery(query)
+                .build()
             try {
                 val response = placesClient.findAutocompletePredictions(request).await()
-                _uiState.update { it.copy(addressPredictions = response.autocompletePredictions, isFetchingPredictions = false) }
+                // [THE FIX] After getting predictions, set the flag to show them.
+                _uiState.update {
+                    it.copy(
+                        addressPredictions = response.autocompletePredictions,
+                        isFetchingPredictions = false,
+                        // Only show the list if predictions were actually found
+                        showPredictionsList = response.autocompletePredictions.isNotEmpty()
+                    )
+                }
             } catch (e: Exception) {
-                _uiState.update { it.copy(addressPredictions = emptyList(), isFetchingPredictions = false) }
+                Log.e("CreateEventVM", "Autocomplete fetch failed", e)
+                _uiState.update { it.copy(addressPredictions = emptyList(), isFetchingPredictions = false, showPredictionsList = false, userMessage = "Address lookup failed.") }
             }
         }
     }

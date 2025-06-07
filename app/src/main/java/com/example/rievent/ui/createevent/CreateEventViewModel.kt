@@ -171,7 +171,7 @@ class CreateEventViewModel(application: Application) : ViewModel() {
     private fun fetchAddressPredictions(query: String) {
         fetchPredictionsJob?.cancel()
         if (query.isBlank() || query.length < 2) {
-            _uiState.update { it.copy(addressPredictions = emptyList(), isFetchingPredictions = false) }
+            _uiState.update { it.copy(addressPredictions = emptyList(), isFetchingPredictions = false, showPredictionsList = false) }
             return
         }
         fetchPredictionsJob = viewModelScope.launch {
@@ -184,10 +184,18 @@ class CreateEventViewModel(application: Application) : ViewModel() {
                 .build()
             try {
                 val response = placesClient.findAutocompletePredictions(request).await()
-                _uiState.update { it.copy(addressPredictions = response.autocompletePredictions, isFetchingPredictions = false) }
+                // [THE FIX] After getting predictions, set the flag to show them.
+                _uiState.update {
+                    it.copy(
+                        addressPredictions = response.autocompletePredictions,
+                        isFetchingPredictions = false,
+                        // Only show the list if predictions were actually found
+                        showPredictionsList = response.autocompletePredictions.isNotEmpty()
+                    )
+                }
             } catch (e: Exception) {
                 Log.e("CreateEventVM", "Autocomplete fetch failed", e)
-                _uiState.update { it.copy(addressPredictions = emptyList(), isFetchingPredictions = false, userMessage = "Address lookup failed.") }
+                _uiState.update { it.copy(addressPredictions = emptyList(), isFetchingPredictions = false, showPredictionsList = false, userMessage = "Address lookup failed.") }
             }
         }
     }
