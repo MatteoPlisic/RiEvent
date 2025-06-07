@@ -1,6 +1,6 @@
 package com.example.rievent.ui.userprofile
 
-import ChatViewModel
+
 import ParticipantInfo
 import android.util.Log
 import androidx.compose.foundation.Image
@@ -48,6 +48,7 @@ import coil.request.ImageRequest
 import com.example.rievent.models.User
 import com.example.rievent.ui.allevents.AllEventCard
 import com.example.rievent.ui.allevents.AllEventsViewModel
+import com.example.rievent.ui.chat.ChatViewModel
 import com.google.firebase.auth.FirebaseAuth
 
 @OptIn(ExperimentalMaterial3Api::class)

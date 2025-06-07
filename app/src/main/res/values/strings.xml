@@ -14,4 +14,7 @@
     <string name="default_notification_channel_id">rievent_default_channel</string>
     <string name="default_notification_channel_name">General Notifications</string>
     <string name="default_notification_channel_description">Default channel for app notifications</string>
+    <string name="message_notification_channel_id" translatable="false">messages_channel</string>
+    <string name="message_notification_channel_name">Direct Messages</string>
+    <string name="message_notification_channel_description">Notifications for new direct messages.</string>
 </resources>

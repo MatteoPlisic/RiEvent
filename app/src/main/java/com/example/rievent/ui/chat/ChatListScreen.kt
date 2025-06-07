@@ -1,3 +1,4 @@
+package com.example.rievent.ui.chat // Or your package
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -36,26 +37,28 @@ fun ChatListScreen(
     val chats by viewModel.chatList.collectAsState()
     val currentUserId = FirebaseAuth.getInstance().currentUser?.uid
 
+
+
     Drawer(
         title = "Messages",
         navController = navController,
         gesturesEnabled = true,
     ) { padding ->
-        // --- START OF CHANGES ---
-        // 1. Wrap everything in a top-level Column
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            // 2. Give the LazyColumn a weight so it fills all available space
             LazyColumn(
                 modifier = Modifier.weight(1f)
             ) {
+                // You can add a loading state here if you want
+                // if (isLoading) { item { CircularProgressIndicator() } }
+
                 if (chats.isEmpty()) {
                     item {
                         Box(
-                            modifier = Modifier.fillParentMaxSize(), // Fill the entire LazyColumn space
+                            modifier = Modifier.fillParentMaxSize(),
                             contentAlignment = Alignment.Center
                         ) {
                             Text("You have no messages yet.")
@@ -79,27 +82,23 @@ fun ChatListScreen(
                 }
             }
 
-            // 3. Place the Button here. It will be pushed to the bottom.
+            // Button to start a new chat
             Button(
                 onClick = {
-                    // TODO: Navigate to a new screen where the user can search for
-                    // and select a user to start a new chat with.
                     navController.navigate("searchUsers")
                 },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(16.dp) // Add some padding around the button
+                    .padding(16.dp)
             ) {
                 Text("Start a New Chat")
             }
         }
-        // --- END OF CHANGES ---
     }
 }
 
 @Composable
 fun ChatListItem(name: String, lastMessage: String, imageUrl: String?, onClick: () -> Unit) {
-    // A simple list item. You can make this much fancier.
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -107,7 +106,7 @@ fun ChatListItem(name: String, lastMessage: String, imageUrl: String?, onClick: 
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Placeholder for profile image
+        // You can later replace this with a Coil/Glide image loader for imageUrl
         Icon(Icons.Default.Person, contentDescription = "Profile", modifier = Modifier.width(48.dp))
         Spacer(Modifier.width(16.dp))
         Column {

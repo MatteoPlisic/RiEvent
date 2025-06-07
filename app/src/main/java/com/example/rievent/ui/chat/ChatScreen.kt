@@ -1,7 +1,10 @@
+
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -30,6 +33,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import com.example.rievent.ui.chat.ChatViewModel
 import com.google.firebase.auth.FirebaseAuth
 
 // You will also need to import your ChatViewModel
@@ -60,7 +64,8 @@ fun ChatScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(8.dp),
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
+
             ) {
                 OutlinedTextField(
                     value = text,
@@ -76,6 +81,7 @@ fun ChatScreen(
                 }) {
                     Icon(Icons.Default.Send, contentDescription = "Send")
                 }
+                Spacer(modifier = Modifier.height(120.dp))
             }
         }
     ) { padding ->
@@ -83,8 +89,11 @@ fun ChatScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding),
-            reverseLayout = true // Newest messages at the bottom
+            reverseLayout = true
+
         ) {
+
+
             items(messages.reversed()) { message ->
                 MessageBubble(
                     text = message.text,
@@ -93,11 +102,12 @@ fun ChatScreen(
             }
         }
     }
+
 }
 
 @Composable
 fun MessageBubble(text: String, isSentByCurrentUser: Boolean) {
-    // A simple bubble. Can be customized with colors, shapes, etc.
+
     Box(
         modifier = Modifier
             .fillMaxWidth()

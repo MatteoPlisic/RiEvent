@@ -20,8 +20,13 @@ import kotlinx.coroutines.flow.asStateFlow
 
 class MainActivity : ComponentActivity() {
 
+    // StateFlow for navigating to a specific EVENT
     private val _deepLinkNavigateToEventId = MutableStateFlow<String?>(null)
     val deepLinkNavigateToEventId: StateFlow<String?> = _deepLinkNavigateToEventId.asStateFlow()
+
+    // NEW: StateFlow for navigating to a specific CHAT
+    private val _deepLinkNavigateToChatId = MutableStateFlow<String?>(null)
+    val deepLinkNavigateToChatId: StateFlow<String?> = _deepLinkNavigateToChatId.asStateFlow()
 
     private val requestPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted: Boolean ->
@@ -38,20 +43,25 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         Log.d("MainActivityLifecycle", "onCreate called")
 
-        askNotificationPermission() // Ask for permission early
+        askNotificationPermission()
 
+        // MODIFIED: Update the call to RiEventAppUI with the new signature
         setContent {
             RiEventAppUI(
                 deepLinkEventIdFlow = deepLinkNavigateToEventId,
-                onDeepLinkHandled = {
-                    Log.d("DeepLink", "Deep link handled, resetting _deepLinkNavigateToEventId.")
+                deepLinkChatIdFlow = deepLinkNavigateToChatId, // NEW: Pass the chat flow
+                onEventDeepLinkHandled = {
+                    Log.d("DeepLink", "Event deep link handled, resetting flow.")
                     _deepLinkNavigateToEventId.value = null
+                },
+                onChatDeepLinkHandled = { // NEW: Add the handler for chat deep links
+                    Log.d("DeepLink", "Chat deep link handled, resetting flow.")
+                    _deepLinkNavigateToChatId.value = null
                 }
             )
         }
 
         // Handle the intent that started this activity instance
-        // This covers the case where the app is launched fresh from a notification.
         Log.d("MainActivityLifecycle", "Calling handleIntentExtras from onCreate")
         handleIntentExtras(intent)
     }
@@ -61,9 +71,48 @@ class MainActivity : ComponentActivity() {
         Log.d("MainActivityLifecycle", "onNewIntent called")
 
         setIntent(intent)
-
         handleIntentExtras(intent)
     }
+
+
+    private fun handleIntentExtras(intent: Intent?) {
+        Log.d("DeepLink", "handleIntentExtras called with intent: $intent")
+        if (intent == null || intent.extras == null) {
+            Log.d("DeepLink", "Intent or extras are null, no deep link data to process.")
+            return
+        }
+
+        val extras = intent.extras
+        val notificationType = extras?.getString("notificationType")
+        Log.d("DeepLink", "Extracted notificationType: $notificationType")
+
+        when (notificationType) {
+            "NEW_MESSAGE" -> {
+                val chatId = extras?.getString("chatId")
+                if (chatId != null) {
+                    Log.i("DeepLink", "Processing deep link for NEW_MESSAGE, chatId: $chatId")
+                    _deepLinkNavigateToChatId.value = chatId
+                } else {
+                    Log.w("DeepLink", "NEW_MESSAGE notification received without a chatId.")
+                }
+            }
+            // Add other event types here as needed
+            "EVENT_DELETED", "EVENT_UPDATED", "NEW_EVENT_BY_FOLLOWED_USER" -> {
+                val eventId = extras?.getString("eventId")
+                if (eventId != null) {
+                    Log.i("DeepLink", "Processing deep link for Event ($notificationType), eventId: $eventId")
+                    _deepLinkNavigateToEventId.value = eventId
+                } else {
+                    Log.w("DeepLink", "Event notification received without an eventId.")
+                }
+            }
+            else -> {
+                Log.d("DeepLink", "Intent contained an unknown or unhandled notificationType: '$notificationType'.")
+            }
+        }
+    }
+
+    // --- The functions below are unchanged but necessary for context ---
 
     private fun askNotificationPermission() {
         Log.d("Permission", "askNotificationPermission called")
@@ -78,7 +127,6 @@ class MainActivity : ComponentActivity() {
                 }
                 shouldShowRequestPermissionRationale(Manifest.permission.POST_NOTIFICATIONS) -> {
                     Log.d("Permission", "Showing rationale for POST_NOTIFICATIONS.")
-                    // TODO: Show a proper rationale dialog before launching permission request
                     requestPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                 }
                 else -> {
@@ -115,7 +163,7 @@ class MainActivity : ComponentActivity() {
             Log.d("FCMToken", "Sending token $token for user $userId to server.")
             val tokenData = mapOf("token" to token, "timestamp" to com.google.firebase.Timestamp.now())
             FirebaseFirestore.getInstance().collection("users").document(userId)
-                .collection("fcmTokens").document(token) // Using token as doc ID
+                .collection("fcmTokens").document(token)
                 .set(tokenData)
                 .addOnSuccessListener { Log.d("FCMToken", "Token successfully sent to server from MainActivity for user $userId") }
                 .addOnFailureListener { e -> Log.e("FCMToken", "Error sending token to server from MainActivity for user $userId", e) }
@@ -123,30 +171,4 @@ class MainActivity : ComponentActivity() {
             Log.w("FCMToken", "User not logged in, token not sent to server.")
         }
     }
-
-    private fun handleIntentExtras(intent: Intent?) {
-        Log.d("DeepLink", "handleIntentExtras called with intent: $intent")
-        if (intent == null || intent.extras == null) {
-            Log.d("DeepLink", "Intent or extras are null, no deep link data to process.")
-            return
-        }
-
-        val extras = intent.extras
-        val eventId = extras?.getString("eventId")
-        val notificationType = extras?.getString("notificationType")
-
-        Log.d("DeepLink", "Extracted from extras: eventId=$eventId, notificationType=$notificationType")
-
-
-        if (eventId != null && notificationType == "NEW_EVENT_BY_FOLLOWED_USER") {
-            Log.i("DeepLink", "Processing deep link for NEW_EVENT_BY_FOLLOWED_USER, eventId: $eventId")
-            _deepLinkNavigateToEventId.value = eventId
-
-
-        } else {
-            Log.d("DeepLink", "Intent did not contain expected deep link data (eventId or correct notificationType).")
-        }
-    }
-
-
 }

@@ -1,8 +1,7 @@
 package com.example.rievent
 
-import ChatListScreen
+
 import ChatScreen
-import ChatViewModel
 
 import android.util.Log
 import androidx.compose.material3.Text
@@ -17,6 +16,8 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.rievent.ui.allevents.AllEventsScreen
 import com.example.rievent.ui.allevents.AllEventsViewModel
+import com.example.rievent.ui.chat.ChatListScreen
+import com.example.rievent.ui.chat.ChatViewModel
 import com.example.rievent.ui.chat.SearchUserScreen
 import com.example.rievent.ui.chat.SearchUserViewModel
 import com.example.rievent.ui.createevent.CreateEventScreen
@@ -41,8 +42,11 @@ import kotlinx.coroutines.flow.collectLatest
 
 @Composable
 fun RiEventAppUI(
+    // MODIFIED: Updated signature to accept separate chat/event flows and handlers
     deepLinkEventIdFlow: StateFlow<String?>,
-    onDeepLinkHandled: () -> Unit
+    deepLinkChatIdFlow: StateFlow<String?>,
+    onEventDeepLinkHandled: () -> Unit,
+    onChatDeepLinkHandled: () -> Unit
 ) {
     val navController = rememberNavController()
     val startDestination = if (FirebaseAuth.getInstance().currentUser != null) {
@@ -51,23 +55,34 @@ fun RiEventAppUI(
         "welcome"
     }
 
-    val eventIdToNavigate by deepLinkEventIdFlow.collectAsState()
-
+    // This ViewModel is shared across several chat-related screens
     val sharedChatViewModel: ChatViewModel = viewModel()
 
+    // --- DEEP LINK HANDLING ---
 
-
+    // Listener for EVENT deep links
+    val eventIdToNavigate by deepLinkEventIdFlow.collectAsState()
     LaunchedEffect(eventIdToNavigate) {
-        Log.d("RiEventAppUI", "Deep link navigation NOT triggered for eventId: $eventIdToNavigate")
         if (eventIdToNavigate != null) {
-            Log.d("RiEventAppUI", "Deep link navigation triggered for eventId: $eventIdToNavigate")
-            navController.navigate("singleEvent/$eventIdToNavigate") {
-                // Optional: Add NavOptions like popUpTo to clear back stack if needed
-                // launchSingleTop = true // If navigating to same screen type
-            }
-            onDeepLinkHandled() // Signal that the deep link has been processed
+            Log.d("DeepLinkUI", "Event deep link triggered. Navigating to event: $eventIdToNavigate")
+            navController.navigate("singleEvent/$eventIdToNavigate")
+            onEventDeepLinkHandled() // MODIFIED: Call the correct handler
         }
     }
+
+    // Listener for CHAT deep links
+    val chatIdToNavigate by deepLinkChatIdFlow.collectAsState()
+    LaunchedEffect(chatIdToNavigate) {
+        if (chatIdToNavigate != null) {
+            Log.d("DeepLinkUI", "Chat deep link triggered. Navigating to conversation: $chatIdToNavigate")
+            // FIXED: Use the correct navigation route "conversation/{chatId}"
+            navController.navigate("conversation/$chatIdToNavigate")
+            onChatDeepLinkHandled() // MODIFIED: Call the correct handler
+        }
+    }
+
+
+    // --- NAVIGATION GRAPH ---
 
     NavHost(navController = navController, startDestination = startDestination) {
         composable("login") {
@@ -85,19 +100,16 @@ fun RiEventAppUI(
         }
         composable("register") {
             val registerViewModel: RegisterViewModel = viewModel()
-            val uiState by registerViewModel.uiState.collectAsState()
-
             LaunchedEffect(key1 = registerViewModel, key2 = navController) {
                 registerViewModel.navigateToHome.collectLatest {
                     Log.d("NavGraph_Register", "navigateToHome from Register collected. Navigating to home.")
                     navController.navigate("home") {
-                        popUpTo("register") { inclusive = true } // Clear register screen
-                        popUpTo("welcome") { inclusive = true } // Also clear welcome if it was before register
+                        popUpTo("register") { inclusive = true }
+                        popUpTo("welcome") { inclusive = true }
                         launchSingleTop = true
                     }
                 }
             }
-
             RegisterScreen(
                 navController = navController,
                 viewModel = registerViewModel
@@ -105,13 +117,10 @@ fun RiEventAppUI(
         }
         composable("welcome"){
             val welcomeViewModel = WelcomeViewModel(LocalContext.current)
-            val uiState by welcomeViewModel.uiState.collectAsState()
             WelcomeScreen(
                 onLoginClick = { navController.navigate("login") },
                 onRegisterClick = { navController.navigate("register") },
-
                 viewModel = welcomeViewModel,
-
                 navController = navController
             )
         }
@@ -122,11 +131,8 @@ fun RiEventAppUI(
             )
         }
         composable("createEvent") {
-
             val currentUserId = FirebaseAuth.getInstance().currentUser?.uid ?: ""
-
             CreateEventScreen(
-
                 currentUserId = currentUserId,
                 onCreated = { navController.navigate("home") },
                 onLogout = { FirebaseAuth.getInstance().signOut(); navController.navigate("welcome") },
@@ -135,7 +141,6 @@ fun RiEventAppUI(
         }
         composable("myEvents") {
             val viewModel: MyEventsViewModel = viewModel()
-
             MyEventsScreen(
                 viewModel = viewModel,
                 navController = navController,
@@ -150,14 +155,13 @@ fun RiEventAppUI(
             val eventId = backStackEntry.arguments?.getString("eventId") ?: return@composable
             UpdateEventScreen(
                 eventId = eventId,
-                onUpdated = { navController.navigate("myEvents") }
-,                navController = navController
+                onUpdated = { navController.navigate("myEvents") },
+                navController = navController
             )
         }
         composable("events") {
             AllEventsScreen(
                 navController = navController
-
             )
         }
         composable("singleEvent/{eventId}") { backStackEntry ->
@@ -169,11 +173,10 @@ fun RiEventAppUI(
                     onNavigateToUserProfile = { userId -> navController.navigate("profile/$userId") }
                 )
             } else {
-
                 Text("Error: Event ID missing.")
             }
         }
-        composable("profile/{userId}") { backStackEntry -> 
+        composable("profile/{userId}") { backStackEntry ->
             val userId = backStackEntry.arguments?.getString("userId")
             if(userId != null) {
                 val viewModel: UserProfileViewModel = viewModel()
@@ -195,7 +198,7 @@ fun RiEventAppUI(
                 Text("Error: User ID missing.")
             }
         }
-        composable("myprofile") { backStackEntry ->
+        composable("myprofile") {
             val userId = FirebaseAuth.getInstance().currentUser?.uid
             if(userId != null) {
                 val viewModel: UserProfileViewModel = viewModel()
@@ -208,7 +211,7 @@ fun RiEventAppUI(
                     onNavigateToSingleEvent = { eventId ->
                         navController.navigate("singleEvent/$eventId")
                     },
-                    isCurrentUserProfile = userId == FirebaseAuth.getInstance().currentUser?.uid,
+                    isCurrentUserProfile = true,
                     chatViewModel = sharedChatViewModel,
                     navController = navController
                 )
@@ -217,7 +220,7 @@ fun RiEventAppUI(
                 Text("Error: User ID missing.")
             }
         }
-        composable("eventMap") { backStackEntry ->
+        composable("eventMap") {
             val viewModel: MapViewModel = viewModel()
             MapScreen(
                 navController = navController,
@@ -225,16 +228,13 @@ fun RiEventAppUI(
             )
         }
         composable("messages") {
-
-            val viewModel: ChatViewModel = viewModel() // Shared ViewModel for chat
             ChatListScreen(
                 navController = navController,
-                viewModel = sharedChatViewModel // Pass the shared ChatViewModel
+                viewModel = sharedChatViewModel
             )
         }
-
+        // This is the destination for chat deep links
         composable("conversation/{chatId}") { backStackEntry ->
-
             val chatId = backStackEntry.arguments?.getString("chatId")
             if (chatId != null) {
                 ChatScreen(
@@ -246,7 +246,6 @@ fun RiEventAppUI(
                 Text("Error: Chat ID missing.")
             }
         }
-
         composable("searchUsers") {
             val viewModel: SearchUserViewModel = viewModel()
             SearchUserScreen(
