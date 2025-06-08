@@ -73,6 +73,7 @@ fun ChatScreen(
             )
         },
         bottomBar = {
+
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -94,6 +95,8 @@ fun ChatScreen(
                     Icon(Icons.Default.Send, contentDescription = stringResource(id = R.string.chat_screen_send_button_description))
                 }
             }
+            Spacer(modifier = Modifier.height(100.dp))
+
         }
     ) { padding ->
         LazyColumn(
