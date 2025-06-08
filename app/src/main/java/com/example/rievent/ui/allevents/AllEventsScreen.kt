@@ -239,13 +239,12 @@ fun AllEventCard(
     modifier: Modifier = Modifier,
     onCardClick: (eventId: String) -> Unit
 ) {
-    // The card now gets all its data directly from the uiState.
+
     val uiState by allEventsViewModel.uiState.collectAsState()
     val eventRsvpData: EventRSPV? = uiState.eventsRsvpsMap[event.id]
 
     val currentUid = remember { FirebaseAuth.getInstance().currentUser?.uid }
 
-    // No more DisposableEffect here! The ViewModel handles listeners.
 
     val (thisUserComing, thisUserMaybeComing, thisUserNotComing) = remember(eventRsvpData, currentUid) {
         if (currentUid == null || eventRsvpData == null) Triple(false, false, false)

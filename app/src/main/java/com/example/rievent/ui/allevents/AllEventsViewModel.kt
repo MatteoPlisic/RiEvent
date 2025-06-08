@@ -45,7 +45,6 @@ class AllEventsViewModel : ViewModel() {
         loadAllPublicEvents()
     }
 
-    // All your on...Change event handlers are correct and remain the same
     fun onSearchTextChanged(text: String) { _uiState.update { it.copy(searchText = text) }; applyFilters() }
     fun onSearchModeChanged(searchByUser: Boolean) { _uiState.update { it.copy(searchByUser = searchByUser) }; applyFilters() }
     fun onCategorySelected(category: String) { _uiState.update { it.copy(selectedCategory = category, isCategoryMenuExpanded = false) }; applyFilters() }
@@ -116,23 +115,19 @@ class AllEventsViewModel : ViewModel() {
         return userLocation.distanceTo(eventLocation) / 1000f
     }
 
-    /**
-     * [THE FIX]
-     * This new function intelligently manages RSVP listeners. It ensures listeners only exist
-     * for events currently displayed on the screen.
-     */
+
     private fun updateRsvpListeners(displayedEventIds: List<String>) {
         val currentListenerIds = rsvpListeners.keys.toSet()
         val newListenerIds = displayedEventIds.toSet()
 
-        // 1. Remove listeners for events that are no longer visible
+
         val idsToStop = currentListenerIds - newListenerIds
         idsToStop.forEach { eventId ->
             rsvpListeners.remove(eventId)?.remove()
             Log.d("AllEventsViewModel", "Stopped listening to RSVP for event: $eventId")
         }
 
-        // 2. Add listeners for new events that just became visible
+
         val idsToStart = newListenerIds - currentListenerIds
         idsToStart.forEach { eventId ->
             listenToRsvpForEvent(eventId)
@@ -160,8 +155,6 @@ class AllEventsViewModel : ViewModel() {
         Log.d("AllEventsViewModel", "Started listening to RSVP for event: $eventId")
     }
 
-    // The public functions stopListeningToRsvp and listenToRsvpForEvent are no longer needed
-    // as the ViewModel now manages this internally. They can be removed or made private.
 
     fun updateRsvp(eventId: String?, newStatus: RsvpStatus) {
         if (eventId.isNullOrBlank()) return
