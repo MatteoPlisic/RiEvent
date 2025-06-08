@@ -1,6 +1,7 @@
 package com.example.rievent.ui.myevents
 
 import Event
+import android.os.SystemClock.sleep
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.firebase.firestore.FirebaseFirestore
@@ -62,7 +63,7 @@ class MyEventsViewModel : ViewModel() {
                     .whereEqualTo("eventId", event.id)
                     .limit(1)
                     .get().await()
-
+                sleep(500)
                 if (!rsvpQuery.isEmpty) {
                     rsvpQuery.documents[0].reference.delete().await()
                 }
