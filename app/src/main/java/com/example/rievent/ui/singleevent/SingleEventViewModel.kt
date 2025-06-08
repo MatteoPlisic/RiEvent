@@ -116,14 +116,16 @@ class SingleEventViewModel : ViewModel() {
             try {
 
                 var userName = auth.currentUser?.displayName
-
+                var profilePic = auth.currentUser?.photoUrl?.toString()
                 if (userName.isNullOrBlank()) {
                     val userDoc = db.collection("users").document(uid).get().await()
                     userName = userDoc.getString("displayName") ?: "Anonymous"
+                    if(profilePic.isNullOrBlank())
+                        profilePic = userDoc.getString("photoUrl")
                 }
 
 
-                val profilePic = auth.currentUser?.photoUrl?.toString()
+
 
 
                 val newComment = EventComment(
