@@ -1,5 +1,6 @@
 package com.example.rievent.ui.singleevent
 
+import android.annotation.SuppressLint
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -62,10 +63,12 @@ import com.example.rievent.ui.utils.Drawer
 import com.google.accompanist.pager.HorizontalPager
 import com.google.accompanist.pager.HorizontalPagerIndicator
 import com.google.accompanist.pager.rememberPagerState
+import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
 import java.text.SimpleDateFormat
 import java.util.Locale
 
+@SuppressLint("StateFlowValueCalledInComposition")
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SingleEventScreen(
@@ -133,7 +136,8 @@ fun SingleEventScreen(
                     RsvpSection(
                         rsvpData = uiState.rsvp,
                         currentUserId = currentUid,
-                        onRsvpChanged = { newStatus -> viewModel.updateRsvp(event.id!!, newStatus) }
+                        onRsvpChanged = { newStatus -> viewModel.updateRsvp(event.id!!, newStatus) },
+                        endTime = viewModel.uiState.value.event?.endTime
                     )
                 }
                 item { Divider() }
@@ -203,7 +207,7 @@ fun ImageCarousel(imageUrls: List<String>) {
     }
 }
 @Composable
-fun RsvpSection(rsvpData: EventRSPV?, currentUserId: String?, onRsvpChanged: (RsvpStatus) -> Unit) {
+fun RsvpSection(rsvpData: EventRSPV?, currentUserId: String?, onRsvpChanged: (RsvpStatus) -> Unit, endTime: Timestamp?) {
     val comingCount = rsvpData?.coming_users?.size ?: 0
     val maybeCount = rsvpData?.maybe_users?.size ?: 0
     val notComingCount = rsvpData?.not_coming_users?.size ?: 0
@@ -214,15 +218,16 @@ fun RsvpSection(rsvpData: EventRSPV?, currentUserId: String?, onRsvpChanged: (Rs
     Column {
         Spacer(Modifier.height(8.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = { onRsvpChanged(RsvpStatus.COMING) }, colors = ButtonDefaults.buttonColors(containerColor = if (userIsComing) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.weight(1f)) { Text(stringResource(id = R.string.rsvp_coming_button, comingCount)) }
-            Button(onClick = { onRsvpChanged(RsvpStatus.MAYBE) }, colors = ButtonDefaults.buttonColors(containerColor = if (userIsMaybe) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.weight(1f)) { Text(stringResource(id = R.string.rsvp_maybe_button, maybeCount)) }
-            Button(onClick = { onRsvpChanged(RsvpStatus.NOT_COMING) }, colors = ButtonDefaults.buttonColors(containerColor = if (userIsNotComing) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.weight(1f)) {
+            Button(enabled = (endTime!! >= Timestamp.now()),onClick = { onRsvpChanged(RsvpStatus.COMING) }, colors = ButtonDefaults.buttonColors(containerColor = if (userIsComing) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.weight(1f)) { Text(stringResource(id = R.string.rsvp_coming_button, comingCount)) }
+            Button(enabled = (endTime!! >= Timestamp.now()),onClick = { onRsvpChanged(RsvpStatus.MAYBE) }, colors = ButtonDefaults.buttonColors(containerColor = if (userIsMaybe) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.weight(1f)) { Text(stringResource(id = R.string.rsvp_maybe_button, maybeCount)) }
+            Button(enabled = (endTime!! >= Timestamp.now()),onClick = { onRsvpChanged(RsvpStatus.NOT_COMING) }, colors = ButtonDefaults.buttonColors(containerColor = if (userIsNotComing) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.weight(1f)) {
                 Text(
                     text = stringResource(id = R.string.rsvp_not_coming_button, notComingCount),
                     textAlign = TextAlign.Center,
                     fontSize = MaterialTheme.typography.labelMedium.fontSize
                 )
             }
+
         }
     }
 }
