@@ -49,7 +49,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -233,7 +232,6 @@ fun AllEventsScreen(
         }
     }
 }
-
 @Composable
 fun AllEventCard(
     event: Event,
@@ -241,22 +239,13 @@ fun AllEventCard(
     modifier: Modifier = Modifier,
     onCardClick: (eventId: String) -> Unit
 ) {
+    // The card now gets all its data directly from the uiState.
     val uiState by allEventsViewModel.uiState.collectAsState()
-    val rsvpMap = uiState.eventsRsvpsMap
-    val eventRsvpData: EventRSPV? = remember(event.id, rsvpMap) { event.id?.let { rsvpMap[it] } }
+    val eventRsvpData: EventRSPV? = uiState.eventsRsvpsMap[event.id]
+
     val currentUid = remember { FirebaseAuth.getInstance().currentUser?.uid }
 
-    DisposableEffect(event.id, allEventsViewModel) {
-        val currentEventId = event.id
-        if (!currentEventId.isNullOrBlank()) {
-            allEventsViewModel.listenToRsvpForEvent(currentEventId)
-        }
-        onDispose {
-            if (!currentEventId.isNullOrBlank()) {
-                allEventsViewModel.stopListeningToRsvp(currentEventId)
-            }
-        }
-    }
+    // No more DisposableEffect here! The ViewModel handles listeners.
 
     val (thisUserComing, thisUserMaybeComing, thisUserNotComing) = remember(eventRsvpData, currentUid) {
         if (currentUid == null || eventRsvpData == null) Triple(false, false, false)
@@ -290,15 +279,12 @@ fun AllEventCard(
                     Button(onClick = { allEventsViewModel.updateRsvp(event.id, RsvpStatus.NOT_COMING) }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = if (thisUserNotComing) Color(0xFFEF5350) else MaterialTheme.colorScheme.errorContainer, contentColor = if (thisUserNotComing) Color.White else MaterialTheme.colorScheme.onErrorContainer), enabled = !thisUserNotComing) { Text(stringResource(id = R.string.all_events_card_not_coming_button, notComingCount), fontSize = 11.sp, lineHeight = 12.sp, textAlign = TextAlign.Center) }
                 }
             }
-
-            // [THE FIX] - Check if the list is not null or empty, then take the first element.
             if (!event.imageUrls.isNullOrEmpty()) {
                 Image(
                     painter = rememberAsyncImagePainter(
                         ImageRequest.Builder(LocalContext.current)
-                            .data(data = event.imageUrls.first()) // Use .first() to get the primary image
-                            .crossfade(true)
-                            .build()
+                            .data(data = event.imageUrls.first())
+                            .crossfade(true).build()
                     ),
                     contentDescription = stringResource(id = R.string.all_events_card_icon_description),
                     modifier = Modifier.size(width = 100.dp, height = 70.dp).padding(top = 8.dp, end = 8.dp).align(Alignment.TopEnd),

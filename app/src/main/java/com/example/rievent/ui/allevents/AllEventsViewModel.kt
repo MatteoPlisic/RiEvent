@@ -23,7 +23,6 @@ import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.ZoneId
 
-
 fun Timestamp.toLocalDate(): LocalDate {
     return this.toDate().toInstant().atZone(ZoneId.systemDefault()).toLocalDate()
 }
@@ -32,17 +31,12 @@ class AllEventsViewModel : ViewModel() {
     private val db = FirebaseFirestore.getInstance()
     private val auth = FirebaseAuth.getInstance()
 
-
     private val _uiState = MutableStateFlow(AllEventsUiState())
     val uiState = _uiState.asStateFlow()
 
-
     private var allEventsMasterList = listOf<Event>()
-
-
     private val rsvpListeners = mutableMapOf<String, ListenerRegistration>()
     private var eventsListenerRegistration: ListenerRegistration? = null
-
 
     private val _navigateToSingleEventAction = MutableSharedFlow<String>(replay = 0, extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
     val navigateToSingleEventAction: SharedFlow<String> = _navigateToSingleEventAction
@@ -51,58 +45,17 @@ class AllEventsViewModel : ViewModel() {
         loadAllPublicEvents()
     }
 
-
-
-    fun onSearchTextChanged(text: String) {
-        _uiState.update { it.copy(searchText = text) }
-        applyFilters()
-    }
-
-    fun onSearchModeChanged(searchByUser: Boolean) {
-        _uiState.update { it.copy(searchByUser = searchByUser) }
-        applyFilters()
-    }
-
-    fun onCategorySelected(category: String) {
-        _uiState.update { it.copy(selectedCategory = category, isCategoryMenuExpanded = false) }
-        applyFilters()
-    }
-
-    fun onCategoryMenuToggled(isExpanded: Boolean) {
-        _uiState.update { it.copy(isCategoryMenuExpanded = isExpanded) }
-    }
-
-    fun onDateSelected(date: LocalDate?) {
-        _uiState.update { it.copy(selectedDate = date, isDatePickerDialogVisible = false) }
-        applyFilters()
-    }
-
-    fun onDatePickerDialogDismissed() {
-        _uiState.update { it.copy(isDatePickerDialogVisible = false) }
-    }
-
-    fun onDatePickerDialogOpened() {
-        _uiState.update { it.copy(isDatePickerDialogVisible = true) }
-    }
-
-    fun onDistanceChanged(distance: Float) {
-        _uiState.update { it.copy(distanceFilterKm = distance) }
-        applyFilters()
-    }
-
-    fun onUserLocationUpdated(location: Location?) {
-        _uiState.update { it.copy(userLocation = location) }
-        // Re-apply filters if location becomes available
-        if (location != null) applyFilters()
-    }
-
-    fun onEventClicked(eventId: String?) {
-        if (eventId.isNullOrBlank()) return
-        viewModelScope.launch {
-            _navigateToSingleEventAction.emit(eventId)
-        }
-    }
-
+    // All your on...Change event handlers are correct and remain the same
+    fun onSearchTextChanged(text: String) { _uiState.update { it.copy(searchText = text) }; applyFilters() }
+    fun onSearchModeChanged(searchByUser: Boolean) { _uiState.update { it.copy(searchByUser = searchByUser) }; applyFilters() }
+    fun onCategorySelected(category: String) { _uiState.update { it.copy(selectedCategory = category, isCategoryMenuExpanded = false) }; applyFilters() }
+    fun onCategoryMenuToggled(isExpanded: Boolean) { _uiState.update { it.copy(isCategoryMenuExpanded = isExpanded) } }
+    fun onDateSelected(date: LocalDate?) { _uiState.update { it.copy(selectedDate = date, isDatePickerDialogVisible = false) }; applyFilters() }
+    fun onDatePickerDialogDismissed() { _uiState.update { it.copy(isDatePickerDialogVisible = false) } }
+    fun onDatePickerDialogOpened() { _uiState.update { it.copy(isDatePickerDialogVisible = true) } }
+    fun onDistanceChanged(distance: Float) { _uiState.update { it.copy(distanceFilterKm = distance) }; applyFilters() }
+    fun onUserLocationUpdated(location: Location?) { _uiState.update { it.copy(userLocation = location) }; if (location != null) applyFilters() }
+    fun onEventClicked(eventId: String?) { if (eventId.isNullOrBlank()) return; viewModelScope.launch { _navigateToSingleEventAction.emit(eventId) } }
 
     private fun loadAllPublicEvents() {
         _uiState.update { it.copy(isLoading = true) }
@@ -144,12 +97,14 @@ class AllEventsViewModel : ViewModel() {
             }
             val matchesDistance = if (currentState.userLocation != null && event.location != null && currentState.distanceFilterKm < 50f) {
                 calculateDistance(currentState.userLocation, event.location) <= currentState.distanceFilterKm
-            } else {
-                true
-            }
+            } else { true }
             matchesText && matchesCategory && matchesDate && matchesDistance
         }
         val hasFilters = currentState.searchText.isNotEmpty() || currentState.selectedCategory != "Any" || currentState.selectedDate != null || currentState.distanceFilterKm < 50f
+
+        // [THE FIX] - Update the listener map AFTER the filtering is done.
+        updateRsvpListeners(filtered.mapNotNull { it.id })
+
         _uiState.update { it.copy(displayedEvents = filtered, hasAppliedFilters = hasFilters) }
     }
 
@@ -161,10 +116,32 @@ class AllEventsViewModel : ViewModel() {
         return userLocation.distanceTo(eventLocation) / 1000f
     }
 
+    /**
+     * [THE FIX]
+     * This new function intelligently manages RSVP listeners. It ensures listeners only exist
+     * for events currently displayed on the screen.
+     */
+    private fun updateRsvpListeners(displayedEventIds: List<String>) {
+        val currentListenerIds = rsvpListeners.keys.toSet()
+        val newListenerIds = displayedEventIds.toSet()
 
+        // 1. Remove listeners for events that are no longer visible
+        val idsToStop = currentListenerIds - newListenerIds
+        idsToStop.forEach { eventId ->
+            rsvpListeners.remove(eventId)?.remove()
+            Log.d("AllEventsViewModel", "Stopped listening to RSVP for event: $eventId")
+        }
 
-    fun listenToRsvpForEvent(eventId: String?) {
-        if (eventId.isNullOrBlank() || rsvpListeners.containsKey(eventId)) return
+        // 2. Add listeners for new events that just became visible
+        val idsToStart = newListenerIds - currentListenerIds
+        idsToStart.forEach { eventId ->
+            listenToRsvpForEvent(eventId)
+        }
+    }
+
+    private fun listenToRsvpForEvent(eventId: String) {
+        if (rsvpListeners.containsKey(eventId)) return // Already listening
+
         val listener = db.collection("event_rspv")
             .whereEqualTo("eventId", eventId)
             .addSnapshotListener { snapshot, error ->
@@ -180,12 +157,11 @@ class AllEventsViewModel : ViewModel() {
                 }
             }
         rsvpListeners[eventId] = listener
+        Log.d("AllEventsViewModel", "Started listening to RSVP for event: $eventId")
     }
 
-    fun stopListeningToRsvp(eventId: String?) {
-        if (eventId.isNullOrBlank()) return
-        rsvpListeners.remove(eventId)?.remove()
-    }
+    // The public functions stopListeningToRsvp and listenToRsvpForEvent are no longer needed
+    // as the ViewModel now manages this internally. They can be removed or made private.
 
     fun updateRsvp(eventId: String?, newStatus: RsvpStatus) {
         if (eventId.isNullOrBlank()) return
@@ -223,8 +199,8 @@ class AllEventsViewModel : ViewModel() {
     override fun onCleared() {
         super.onCleared()
         eventsListenerRegistration?.remove()
-        rsvpListeners.values.forEach { it.remove() }
+        rsvpListeners.values.forEach { it.remove() } // This correctly cleans up all remaining listeners
         rsvpListeners.clear()
-        Log.d("AllEventsViewModel", "ViewModel cleared, listeners removed.")
+        Log.d("AllEventsViewModel", "ViewModel cleared, all listeners removed.")
     }
 }
