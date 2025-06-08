@@ -184,7 +184,6 @@ fun RsvpSection(rsvpData: EventRSPV?, currentUserId: String?, onRsvpChanged: (Rs
     val userIsNotComing = rsvpData?.not_coming_users?.any { it.userId == currentUserId } == true
 
     Column {
-        Text(stringResource(id = R.string.rsvp_title), style = MaterialTheme.typography.titleMedium)
         Spacer(Modifier.height(8.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = { onRsvpChanged(RsvpStatus.COMING) }, colors = ButtonDefaults.buttonColors(containerColor = if (userIsComing) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.weight(1f)) { Text(stringResource(id = R.string.rsvp_coming_button, comingCount)) }

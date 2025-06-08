@@ -136,7 +136,7 @@ class CreateEventViewModel(application: Application) : ViewModel() {
             val startTs = runCatching { Timestamp(formatter.parse("${currentState.startDate} ${currentState.startTime}")!!) }.getOrNull()
             val endTs = runCatching { Timestamp(formatter.parse("${currentState.endDate} ${currentState.endTime}")!!) }.getOrNull()
             val geoPt = currentState.selectedPlace?.latLng?.let { GeoPoint(it.latitude, it.longitude) }
-            val ownerName = auth.currentUser?.displayName ?: "Anonymous"
+            val ownerName = getAuthorName(auth.currentUser?.uid)
             val ownerId = auth.currentUser?.uid ?: ""
 
             // Create the event with the list of image URLs
@@ -201,6 +201,24 @@ class CreateEventViewModel(application: Application) : ViewModel() {
             } catch (e: Exception) {
                 _uiState.update { it.copy(addressPredictions = emptyList(), isFetchingPredictions = false, showPredictionsList = false, userMessage = "Address lookup failed.") }
             }
+        }
+    }
+    private suspend fun getAuthorName(userId: String?): String {
+        if (userId == null) return "Anonymous"
+
+
+        val authName = auth.currentUser?.displayName
+        if (!authName.isNullOrBlank()) {
+            return authName
+        }
+
+
+        return try {
+            val userDoc = db.collection("users").document(userId).get().await()
+            userDoc.getString("displayName") ?: "Anonymous"
+        } catch (e: Exception) {
+            Log.e("ViewModelUtils", "Failed to fetch author name from Firestore for user $userId", e)
+            "Anonymous"
         }
     }
 }
