@@ -89,7 +89,7 @@ dependencies {
     debugImplementation(libs.androidx.ui.test.manifest)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(platform("com.google.firebase:firebase-bom:33.11.0"))
-
+    implementation("com.google.android.gms:play-services-auth:21.3.0")
 
 
 
