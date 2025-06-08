@@ -6,9 +6,11 @@ import android.net.Uri
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.google.android.gms.common.api.ApiException
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.libraries.places.api.Places
 import com.google.android.libraries.places.api.model.AutocompletePrediction
+import com.google.android.libraries.places.api.model.AutocompleteSessionToken
 import com.google.android.libraries.places.api.model.Place
 import com.google.android.libraries.places.api.model.RectangularBounds
 import com.google.android.libraries.places.api.net.FetchPlaceRequest
@@ -36,18 +38,12 @@ class UpdateEventViewModel(application: Application) : AndroidViewModel(applicat
     private val db = FirebaseFirestore.getInstance()
     private val storage = FirebaseStorage.getInstance()
     private val placesClient: PlacesClient = Places.createClient(application)
-
     private val _uiState = MutableStateFlow(UpdateEventUiState())
     val uiState = _uiState.asStateFlow()
-
     private var fetchPredictionsJob: Job? = null
+    private var token: AutocompleteSessionToken = AutocompleteSessionToken.newInstance()
+    private val primorjeGorskiKotarBounds = RectangularBounds.newInstance(LatLng(44.85, 14.15), LatLng(45.75, 15.05))
 
-    private val primorjeGorskiKotarBounds = RectangularBounds.newInstance(
-        LatLng(44.85, 14.15),
-        LatLng(45.75, 15.05)
-    )
-
-    // --- DATA LOADING ---
     fun loadEvent(eventId: String) {
         if (eventId.isBlank()) {
             _uiState.update { it.copy(userMessage = "Event ID is missing.", isInitialLoading = false) }
@@ -74,22 +70,19 @@ class UpdateEventViewModel(application: Application) : AndroidViewModel(applicat
         val timeFormatter = SimpleDateFormat("HH:mm", Locale.getDefault())
         _uiState.update {
             it.copy(
-                originalEvent = event,
-                name = event.name,
-                description = event.description,
+                originalEvent = event, name = event.name, description = event.description,
                 category = event.category,
                 startDate = event.startTime?.toDate()?.let { d -> dateFormatter.format(d) } ?: "",
                 startTime = event.startTime?.toDate()?.let { d -> timeFormatter.format(d) } ?: "",
                 endDate = event.endTime?.toDate()?.let { d -> dateFormatter.format(d) } ?: "",
                 endTime = event.endTime?.toDate()?.let { d -> timeFormatter.format(d) } ?: "",
-                addressInput = event.address,
+                isPublic = event.isPublic, addressInput = event.address,
                 existingImageUrls = event.imageUrls,
                 isInitialLoading = false
             )
         }
     }
 
-    // --- UI EVENT HANDLERS ---
     fun onNameChange(name: String) { _uiState.update { it.copy(name = name) } }
     fun onDescriptionChange(description: String) { _uiState.update { it.copy(description = description) } }
     fun onCategoryChange(category: String) { _uiState.update { it.copy(category = category, isCategoryMenuExpanded = false) } }
@@ -97,15 +90,14 @@ class UpdateEventViewModel(application: Application) : AndroidViewModel(applicat
     fun onStartTimeChange(time: String) { _uiState.update { it.copy(startTime = time) } }
     fun onEndDateChange(date: String) { _uiState.update { it.copy(endDate = date) } }
     fun onEndTimeChange(time: String) { _uiState.update { it.copy(endTime = time) } }
-
+    fun onPublicToggle(isPublic: Boolean) { _uiState.update { it.copy(isPublic = isPublic) } }
     fun onCategoryMenuToggled(isExpanded: Boolean) { _uiState.update { it.copy(isCategoryMenuExpanded = isExpanded) } }
-
     fun onImageAdded(uri: Uri) { _uiState.update { it.copy(newImageUris = it.newImageUris + uri) } }
     fun onNewImageRemoved(uri: Uri) { _uiState.update { it.copy(newImageUris = it.newImageUris - uri) } }
     fun onExistingImageRemoved(url: String) { _uiState.update { it.copy(existingImageUrls = it.existingImageUrls - url) } }
 
     fun onAddressInputChange(query: String) {
-        _uiState.update { it.copy(addressInput = query, selectedPlace = null) }
+        _uiState.update { it.copy(addressInput = query, selectedPlace = null, showPredictionsList = true) }
         fetchAddressPredictions(query)
     }
 
@@ -113,28 +105,29 @@ class UpdateEventViewModel(application: Application) : AndroidViewModel(applicat
         _uiState.update { it.copy(isUpdating = true, showPredictionsList = false) }
         val placeId = prediction.placeId
         val placeFields = listOf(Place.Field.ID, Place.Field.NAME, Place.Field.ADDRESS, Place.Field.LAT_LNG)
-        val request = FetchPlaceRequest.builder(placeId, placeFields).build()
-        viewModelScope.launch {
-            try {
-                val response = placesClient.fetchPlace(request).await()
-                _uiState.update { it.copy(
+        val request = FetchPlaceRequest.builder(placeId, placeFields).setSessionToken(token).build()
+        placesClient.fetchPlace(request).addOnSuccessListener { response ->
+            token = AutocompleteSessionToken.newInstance()
+            _uiState.update {
+                it.copy(
                     selectedPlace = response.place,
                     addressInput = response.place.address ?: prediction.getPrimaryText(null).toString(),
                     isUpdating = false,
                     addressPredictions = emptyList()
-                ) }
-            } catch (e: Exception) {
-                _uiState.update { it.copy(userMessage = "Could not get place details.", isUpdating = false) }
+                )
             }
+        }.addOnFailureListener {
+            token = AutocompleteSessionToken.newInstance()
+            _uiState.update { it.copy(userMessage = "Could not get place details.", isUpdating = false) }
         }
     }
 
     fun onAddressFocusChanged(isFocused: Boolean) {
-        val currentState = _uiState.value
-        if (isFocused && currentState.addressInput.isNotBlank() && currentState.addressPredictions.isNotEmpty()) {
-            _uiState.update { it.copy(showPredictionsList = true) }
-        } else if (!isFocused) {
-            viewModelScope.launch { delay(200); _uiState.update { it.copy(showPredictionsList = false) } }
+        if (!isFocused) {
+            viewModelScope.launch {
+                delay(200)
+                _uiState.update { it.copy(showPredictionsList = false) }
+            }
         }
     }
 
@@ -146,7 +139,6 @@ class UpdateEventViewModel(application: Application) : AndroidViewModel(applicat
     fun onUpdateNavigated() {
         _uiState.update { it.copy(updateSuccess = false) }
     }
-
 
     fun updateEvent() {
         val currentState = _uiState.value
@@ -167,7 +159,7 @@ class UpdateEventViewModel(application: Application) : AndroidViewModel(applicat
                 val updatedEvent = originalEvent.copy(
                     name = currentState.name, description = currentState.description, category = currentState.category,
                     startTime = startTs, endTime = endTs, address = currentState.addressInput,
-                    location = geoPt, imageUrls = finalImageUrls
+                    location = geoPt, isPublic = currentState.isPublic, imageUrls = finalImageUrls
                 )
 
                 db.collection("Event").document(originalEvent.id!!).set(updatedEvent).await()
@@ -180,40 +172,45 @@ class UpdateEventViewModel(application: Application) : AndroidViewModel(applicat
 
     private suspend fun uploadImagesToStorage(imageUris: List<Uri>): List<String> {
         if (imageUris.isEmpty()) return emptyList()
-        val uploadJobs = imageUris.map { uri ->
+        return imageUris.map { uri ->
             viewModelScope.async {
                 val fileName = "event_images/${UUID.randomUUID()}"
                 val imageRef: StorageReference = storage.reference.child(fileName)
                 imageRef.putFile(uri).await()
                 imageRef.downloadUrl.await().toString()
             }
-        }
-        return uploadJobs.awaitAll()
+        }.awaitAll()
     }
 
     private suspend fun deleteImagesFromStorage(imageUrls: List<String>) {
         if (imageUrls.isEmpty()) return
-        val deleteJobs = imageUrls.map { url ->
+        imageUrls.map { url ->
             viewModelScope.async {
                 try { storage.getReferenceFromUrl(url).delete().await() }
                 catch (e: Exception) { Log.w("UpdateEventVM", "Failed to delete old image, proceeding anyway.", e) }
             }
-        }
-        deleteJobs.awaitAll()
+        }.awaitAll()
     }
 
     private fun fetchAddressPredictions(query: String) {
         fetchPredictionsJob?.cancel()
-        if (query.isBlank()) { _uiState.update { it.copy(addressPredictions = emptyList()) }; return }
+        if (query.isBlank()) {
+            _uiState.update { it.copy(addressPredictions = emptyList(), isFetchingPredictions = false, showPredictionsList = false) }
+            return
+        }
         fetchPredictionsJob = viewModelScope.launch {
             delay(300)
             _uiState.update { it.copy(isFetchingPredictions = true) }
             val request = FindAutocompletePredictionsRequest.builder()
-                .setCountries("HR").setLocationRestriction(primorjeGorskiKotarBounds).setQuery(query).build()
-            try {
-                val response = placesClient.findAutocompletePredictions(request).await()
+                .setSessionToken(token)
+                .setCountries("HR").setLocationRestriction(primorjeGorskiKotarBounds)
+                .setQuery(query).build()
+            placesClient.findAutocompletePredictions(request).addOnSuccessListener { response ->
                 _uiState.update { it.copy(addressPredictions = response.autocompletePredictions, isFetchingPredictions = false) }
-            } catch (e: Exception) {
+            }.addOnFailureListener { exception ->
+                if (exception is ApiException) {
+                    Log.e("UpdateEventVM", "Place API error: ${exception.statusCode}")
+                }
                 _uiState.update { it.copy(addressPredictions = emptyList(), isFetchingPredictions = false) }
             }
         }

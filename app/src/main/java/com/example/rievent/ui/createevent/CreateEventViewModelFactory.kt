@@ -1,4 +1,4 @@
-package com.example.rievent.ui.createevent // Or your ViewModel's package
+package com.example.rievent.ui.createevent
 
 import android.app.Application
 import androidx.lifecycle.ViewModel

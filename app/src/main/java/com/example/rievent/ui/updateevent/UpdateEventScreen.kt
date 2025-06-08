@@ -1,5 +1,6 @@
 package com.example.rievent.ui.updateevent
 
+import android.app.Application
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -42,6 +43,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontStyle
@@ -58,9 +60,9 @@ import com.example.rievent.ui.utils.TimePickerField
 @Composable
 fun UpdateEventScreen(
     eventId: String,
-    viewModel: UpdateEventViewModel = viewModel(),
     onUpdated: () -> Unit,
-    navController: NavController
+    navController: NavController,
+    viewModel: UpdateEventViewModel = viewModel(factory = UpdateEventViewModelFactory(LocalContext.current.applicationContext as Application))
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
@@ -88,16 +90,16 @@ fun UpdateEventScreen(
     Drawer(title = stringResource(id = R.string.update_event_title), navController = navController, gesturesEnabled = true) { padding ->
         when {
             uiState.isInitialLoading -> {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+                Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
             }
             uiState.originalEvent == null -> {
-                Box(Modifier.fillMaxSize().padding(16.dp), contentAlignment = Alignment.Center) {
+                Box(Modifier.fillMaxSize().padding(padding).padding(16.dp), contentAlignment = Alignment.Center) {
                     Text(uiState.userMessage ?: stringResource(id = R.string.event_load_error), color = MaterialTheme.colorScheme.error)
                 }
             }
             else -> {
                 Box(
-                    modifier = Modifier.fillMaxSize().padding(top = 70.dp, bottom = 16.dp, start = 16.dp, end = 16.dp),
+                    modifier = Modifier.fillMaxSize().padding(padding).padding(top = 70.dp, bottom = 16.dp, start = 16.dp, end = 16.dp),
                     contentAlignment = Alignment.TopCenter
                 ) {
                     LazyColumn(
@@ -105,7 +107,6 @@ fun UpdateEventScreen(
                         verticalArrangement = Arrangement.spacedBy(16.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        item{Spacer(modifier = Modifier.height(10.dp))}
                         item { OutlinedTextField(value = uiState.name, onValueChange = viewModel::onNameChange, label = { Text(stringResource(id = R.string.event_name_label)) }, modifier = Modifier.fillMaxWidth()) }
                         item { OutlinedTextField(value = uiState.description, onValueChange = viewModel::onDescriptionChange, label = { Text(stringResource(id = R.string.description_label)) }, modifier = Modifier.fillMaxWidth(), minLines = 3) }
                         item {
@@ -153,7 +154,6 @@ fun UpdateEventScreen(
                                 Text(stringResource(id = R.string.event_image_label), style = MaterialTheme.typography.labelMedium)
                                 Spacer(Modifier.height(8.dp))
 
-                                // Display existing and new images
                                 if (uiState.existingImageUrls.isEmpty() && uiState.newImageUris.isEmpty()) {
                                     Text("No images for this event.", style = MaterialTheme.typography.bodySmall)
                                 } else {
