@@ -16,6 +16,6 @@ data class EventClusterItem(
     override fun getTitle(): String = title
     override fun getSnippet(): String? = snippet
 
-    // Optional: You can add a z-index if you want to control marker stacking.
+
     override fun getZIndex(): Float? = 0f
 }

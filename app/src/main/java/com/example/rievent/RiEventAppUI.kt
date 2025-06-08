@@ -42,7 +42,7 @@ import kotlinx.coroutines.flow.collectLatest
 
 @Composable
 fun RiEventAppUI(
-    // MODIFIED: Updated signature to accept separate chat/event flows and handlers
+
     deepLinkEventIdFlow: StateFlow<String?>,
     deepLinkChatIdFlow: StateFlow<String?>,
     onEventDeepLinkHandled: () -> Unit,
@@ -55,34 +55,30 @@ fun RiEventAppUI(
         "welcome"
     }
 
-    // This ViewModel is shared across several chat-related screens
     val sharedChatViewModel: ChatViewModel = viewModel()
 
-    // --- DEEP LINK HANDLING ---
 
-    // Listener for EVENT deep links
     val eventIdToNavigate by deepLinkEventIdFlow.collectAsState()
     LaunchedEffect(eventIdToNavigate) {
         if (eventIdToNavigate != null) {
             Log.d("DeepLinkUI", "Event deep link triggered. Navigating to event: $eventIdToNavigate")
             navController.navigate("singleEvent/$eventIdToNavigate")
-            onEventDeepLinkHandled() // MODIFIED: Call the correct handler
+            onEventDeepLinkHandled()
         }
     }
 
-    // Listener for CHAT deep links
+
     val chatIdToNavigate by deepLinkChatIdFlow.collectAsState()
     LaunchedEffect(chatIdToNavigate) {
         if (chatIdToNavigate != null) {
             Log.d("DeepLinkUI", "Chat deep link triggered. Navigating to conversation: $chatIdToNavigate")
-            // FIXED: Use the correct navigation route "conversation/{chatId}"
+
             navController.navigate("conversation/$chatIdToNavigate")
-            onChatDeepLinkHandled() // MODIFIED: Call the correct handler
+            onChatDeepLinkHandled()
         }
     }
 
 
-    // --- NAVIGATION GRAPH ---
 
     NavHost(navController = navController, startDestination = startDestination) {
         composable("login") {

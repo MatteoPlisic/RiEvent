@@ -114,8 +114,7 @@ class MapViewModel : ViewModel() {
     }
 
     fun onMapStopMoving() {
-        // This is where you might want to clear a selection if the selected
-        // event is no longer visible, but for now we do nothing.
+
     }
 
     fun onMapStartMoving() {

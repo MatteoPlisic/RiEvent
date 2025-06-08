@@ -1,4 +1,4 @@
-package com.example.rievent // Make sure this matches your app's package name
+package com.example.rievent
 
 import android.app.Application
 import android.content.pm.PackageManager

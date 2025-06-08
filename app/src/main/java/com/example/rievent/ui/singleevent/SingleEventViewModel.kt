@@ -80,7 +80,7 @@ class SingleEventViewModel : ViewModel() {
         ratingsListener = db.collection("event_ratings").whereEqualTo("eventId", eventId)
             .addSnapshotListener { snapshot, _ ->
                 val ratingsList = snapshot?.toObjects<EventRating>() ?: emptyList()
-                allRatings = ratingsList // Store the full list internally
+                allRatings = ratingsList
 
                 val avg = if (ratingsList.isEmpty()) 0.0f else ratingsList.map { it.rating }.average().toFloat()
                 val userRatingValue = ratingsList.find { it.userId == uid }?.rating

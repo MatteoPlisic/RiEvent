@@ -169,13 +169,13 @@ fun CreateEventScreen(
                     }
                 }
 
-                // [MODIFIED] Image selection section now handles multiple images
+
                 item {
                     Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(stringResource(id = R.string.event_image_label), style = MaterialTheme.typography.labelMedium)
                         Spacer(Modifier.height(8.dp))
 
-                        // Display selected images in a horizontal row
+
                         if (uiState.imageUris.isNotEmpty()) {
                             LazyRow(
                                 modifier = Modifier.fillMaxWidth(),
@@ -190,7 +190,7 @@ fun CreateEventScreen(
                             }
                         }
 
-                        // Button to add more photos
+
                         Spacer(Modifier.height(8.dp))
                         Button(onClick = { imagePickerLauncher.launch("image/*") }) {
                             Icon(imageVector = Icons.Default.AddPhotoAlternate, contentDescription = null)
@@ -223,7 +223,7 @@ fun CreateEventScreen(
     }
 }
 
-// A reusable composable for displaying a single image preview with a remove button
+
 @Composable
 fun ImagePreview(
     uri: Uri,

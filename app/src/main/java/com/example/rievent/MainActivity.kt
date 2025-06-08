@@ -1,4 +1,4 @@
-package com.example.rievent // Your package
+package com.example.rievent
 
 import android.Manifest
 import android.content.Intent

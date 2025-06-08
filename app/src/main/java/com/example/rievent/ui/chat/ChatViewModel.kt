@@ -37,7 +37,7 @@ class ChatViewModel : ViewModel() {
 
     private fun listenForUserChats() {
         if (currentUserId == null) return
-        chatListListener?.remove() // Safety check
+        chatListListener?.remove()
         chatListListener = db.collection("chats")
             .whereArrayContains("participantIds", currentUserId)
             .orderBy("lastMessageTimestamp", Query.Direction.DESCENDING)

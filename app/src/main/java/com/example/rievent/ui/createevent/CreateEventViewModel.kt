@@ -52,7 +52,7 @@ class CreateEventViewModel(application: Application) : ViewModel() {
         LatLng(45.75, 15.05)
     )
 
-    // --- UI EVENT HANDLERS ---
+
     fun onNameChange(name: String) { _uiState.update { it.copy(name = name) } }
     fun onDescriptionChange(description: String) { _uiState.update { it.copy(description = description) } }
     fun onCategoryChange(category: String) { _uiState.update { it.copy(category = category, isCategoryMenuExpanded = false) } }
@@ -62,12 +62,11 @@ class CreateEventViewModel(application: Application) : ViewModel() {
     fun onEndTimeChange(time: String) { _uiState.update { it.copy(endTime = time) } }
     fun onCategoryMenuToggled(isExpanded: Boolean) { _uiState.update { it.copy(isCategoryMenuExpanded = isExpanded) } }
 
-    // [MODIFIED] Add a new Uri to the list
+
     fun onImageSelected(uri: Uri) {
         _uiState.update { it.copy(imageUris = it.imageUris + uri) }
     }
 
-    // [NEW] Remove a specific Uri from the list
     fun onImageRemoved(uri: Uri) {
         _uiState.update { it.copy(imageUris = it.imageUris - uri) }
     }
@@ -117,13 +116,12 @@ class CreateEventViewModel(application: Application) : ViewModel() {
         _uiState.value = CreateEventUiState()
     }
 
-    // --- MAIN LOGIC ---
     fun createEvent() {
         viewModelScope.launch {
             _uiState.update { it.copy(isSubmitting = true, creationSuccess = false, userMessage = null) }
             val currentState = _uiState.value
 
-            // [MODIFIED] Upload multiple images and collect their URLs
+
             val imageUrls = try {
                 uploadImagesToStorage(currentState.imageUris)
             } catch (e: Exception) {
@@ -139,13 +137,13 @@ class CreateEventViewModel(application: Application) : ViewModel() {
             val ownerName = getAuthorName(auth.currentUser?.uid)
             val ownerId = auth.currentUser?.uid ?: ""
 
-            // Create the event with the list of image URLs
+
             val event = Event(
                 name = currentState.name.trim(), description = currentState.description.trim(), category = currentState.category,
                 ownerId = ownerId, startTime = startTs, endTime = endTs,
                 address = currentState.addressInput.trim(), location = geoPt,
                 ownerName = ownerName, createdAt = Timestamp.now(),
-                imageUrls = imageUrls // [MODIFIED] Use imageUrls (list)
+                imageUrls = imageUrls
             )
 
             try {
@@ -161,11 +159,9 @@ class CreateEventViewModel(application: Application) : ViewModel() {
         }
     }
 
-    // [NEW] Helper function to upload a list of images concurrently
     private suspend fun uploadImagesToStorage(imageUris: List<Uri>): List<String> {
         if (imageUris.isEmpty()) return emptyList()
 
-        // Use async to start all uploads in parallel
         val uploadJobs = imageUris.map { uri ->
             viewModelScope.async {
                 val fileName = "event_images/${UUID.randomUUID()}"
@@ -174,7 +170,7 @@ class CreateEventViewModel(application: Application) : ViewModel() {
                 imageRef.downloadUrl.await().toString()
             }
         }
-        // Wait for all parallel jobs to complete and return the list of URLs
+
         return uploadJobs.awaitAll()
     }
 

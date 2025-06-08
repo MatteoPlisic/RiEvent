@@ -49,8 +49,6 @@ fun ChatScreen(
     val currentUserId = FirebaseAuth.getInstance().currentUser?.uid
     var text by remember { mutableStateOf("") }
 
-    // You could also fetch the other user's name to display in the TopAppBar
-    // val otherUserName by remember(chatId) { mutableStateOf(viewModel.getOtherParticipantName(chatId)) }
 
     LaunchedEffect(chatId) {
         viewModel.listenForMessages(chatId)
@@ -59,9 +57,9 @@ fun ChatScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                // You can enhance this later to show the user's name
+
                 title = { Text(stringResource(id = R.string.chat_screen_title)) },
-                // [THE FIX] - Add the navigationIcon with a back button
+
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
                         Icon(

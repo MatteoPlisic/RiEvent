@@ -101,7 +101,6 @@ class AllEventsViewModel : ViewModel() {
         }
         val hasFilters = currentState.searchText.isNotEmpty() || currentState.selectedCategory != "Any" || currentState.selectedDate != null || currentState.distanceFilterKm < 50f
 
-        // [THE FIX] - Update the listener map AFTER the filtering is done.
         updateRsvpListeners(filtered.mapNotNull { it.id })
 
         _uiState.update { it.copy(displayedEvents = filtered, hasAppliedFilters = hasFilters) }
@@ -135,7 +134,7 @@ class AllEventsViewModel : ViewModel() {
     }
 
     private fun listenToRsvpForEvent(eventId: String) {
-        if (rsvpListeners.containsKey(eventId)) return // Already listening
+        if (rsvpListeners.containsKey(eventId)) return
 
         val listener = db.collection("event_rspv")
             .whereEqualTo("eventId", eventId)
@@ -192,7 +191,7 @@ class AllEventsViewModel : ViewModel() {
     override fun onCleared() {
         super.onCleared()
         eventsListenerRegistration?.remove()
-        rsvpListeners.values.forEach { it.remove() } // This correctly cleans up all remaining listeners
+        rsvpListeners.values.forEach { it.remove() }
         rsvpListeners.clear()
         Log.d("AllEventsViewModel", "ViewModel cleared, all listeners removed.")
     }
