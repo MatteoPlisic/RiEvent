@@ -82,7 +82,6 @@ class UpdateEventViewModel(application: Application) : AndroidViewModel(applicat
                 startTime = event.startTime?.toDate()?.let { d -> timeFormatter.format(d) } ?: "",
                 endDate = event.endTime?.toDate()?.let { d -> dateFormatter.format(d) } ?: "",
                 endTime = event.endTime?.toDate()?.let { d -> timeFormatter.format(d) } ?: "",
-                isPublic = event.isPublic,
                 addressInput = event.address,
                 existingImageUrls = event.imageUrls,
                 isInitialLoading = false
@@ -98,7 +97,7 @@ class UpdateEventViewModel(application: Application) : AndroidViewModel(applicat
     fun onStartTimeChange(time: String) { _uiState.update { it.copy(startTime = time) } }
     fun onEndDateChange(date: String) { _uiState.update { it.copy(endDate = date) } }
     fun onEndTimeChange(time: String) { _uiState.update { it.copy(endTime = time) } }
-    fun onPublicToggle(isPublic: Boolean) { _uiState.update { it.copy(isPublic = isPublic) } }
+
     fun onCategoryMenuToggled(isExpanded: Boolean) { _uiState.update { it.copy(isCategoryMenuExpanded = isExpanded) } }
 
     fun onImageAdded(uri: Uri) { _uiState.update { it.copy(newImageUris = it.newImageUris + uri) } }
@@ -148,7 +147,7 @@ class UpdateEventViewModel(application: Application) : AndroidViewModel(applicat
         _uiState.update { it.copy(updateSuccess = false) }
     }
 
-    // --- MAIN UPDATE LOGIC ---
+
     fun updateEvent() {
         val currentState = _uiState.value
         val originalEvent = currentState.originalEvent ?: return
@@ -168,7 +167,7 @@ class UpdateEventViewModel(application: Application) : AndroidViewModel(applicat
                 val updatedEvent = originalEvent.copy(
                     name = currentState.name, description = currentState.description, category = currentState.category,
                     startTime = startTs, endTime = endTs, address = currentState.addressInput,
-                    location = geoPt, isPublic = currentState.isPublic, imageUrls = finalImageUrls
+                    location = geoPt, imageUrls = finalImageUrls
                 )
 
                 db.collection("Event").document(originalEvent.id!!).set(updatedEvent).await()

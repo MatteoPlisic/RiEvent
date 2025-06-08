@@ -16,8 +16,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -164,7 +164,7 @@ fun UserProfileHeader(
     onMessageClick: () -> Unit
 ) {
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
-        if (user.photoUrl != null) {
+        if (!user.photoUrl.isNullOrBlank()) {
             Image(
                 painter = rememberAsyncImagePainter(ImageRequest.Builder(LocalContext.current).data(user.photoUrl).crossfade(true).build()),
                 contentDescription = stringResource(id = R.string.user_profile_picture_description),
@@ -173,7 +173,7 @@ fun UserProfileHeader(
             )
         } else {
             Icon(
-                Icons.Default.AccountCircle,
+                Icons.Default.Person,
                 contentDescription = stringResource(id = R.string.default_profile_picture_description),
                 modifier = Modifier.size(120.dp),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant

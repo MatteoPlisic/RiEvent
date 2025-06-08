@@ -7,7 +7,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -24,7 +23,6 @@ import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Divider
 import androidx.compose.material3.DropdownMenuItem
@@ -90,16 +88,16 @@ fun UpdateEventScreen(
     Drawer(title = stringResource(id = R.string.update_event_title), navController = navController, gesturesEnabled = true) { padding ->
         when {
             uiState.isInitialLoading -> {
-                Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
             }
             uiState.originalEvent == null -> {
-                Box(Modifier.fillMaxSize().padding(padding).padding(16.dp), contentAlignment = Alignment.Center) {
+                Box(Modifier.fillMaxSize().padding(16.dp), contentAlignment = Alignment.Center) {
                     Text(uiState.userMessage ?: stringResource(id = R.string.event_load_error), color = MaterialTheme.colorScheme.error)
                 }
             }
             else -> {
                 Box(
-                    modifier = Modifier.fillMaxSize().padding(padding).padding(top = 70.dp, bottom = 16.dp, start = 16.dp, end = 16.dp),
+                    modifier = Modifier.fillMaxSize().padding(top = 70.dp, bottom = 16.dp, start = 16.dp, end = 16.dp),
                     contentAlignment = Alignment.TopCenter
                 ) {
                     LazyColumn(
@@ -107,6 +105,7 @@ fun UpdateEventScreen(
                         verticalArrangement = Arrangement.spacedBy(16.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
+                        item{Spacer(modifier = Modifier.height(10.dp))}
                         item { OutlinedTextField(value = uiState.name, onValueChange = viewModel::onNameChange, label = { Text(stringResource(id = R.string.event_name_label)) }, modifier = Modifier.fillMaxWidth()) }
                         item { OutlinedTextField(value = uiState.description, onValueChange = viewModel::onDescriptionChange, label = { Text(stringResource(id = R.string.description_label)) }, modifier = Modifier.fillMaxWidth(), minLines = 3) }
                         item {
@@ -180,12 +179,7 @@ fun UpdateEventScreen(
                         item { TimePickerField(label = stringResource(id = R.string.start_time_label), value = uiState.startTime, onTimeSelected = viewModel::onStartTimeChange, onTextChange = viewModel::onStartTimeChange) }
                         item { DatePickerField(label = stringResource(id = R.string.end_date_label), value = uiState.endDate, onDateSelected = viewModel::onEndDateChange, onTextChange = viewModel::onEndDateChange) }
                         item { TimePickerField(label = stringResource(id = R.string.end_time_label), value = uiState.endTime, onTimeSelected = viewModel::onEndTimeChange, onTextChange = viewModel::onEndTimeChange) }
-                        item {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Checkbox(checked = uiState.isPublic, onCheckedChange = viewModel::onPublicToggle)
-                                Text(stringResource(id = R.string.make_event_public_label))
-                            }
-                        }
+
                         item {
                             Button(
                                 onClick = viewModel::updateEvent,

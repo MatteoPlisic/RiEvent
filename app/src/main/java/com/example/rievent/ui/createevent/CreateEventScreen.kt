@@ -98,13 +98,14 @@ fun CreateEventScreen(
             modifier = Modifier.fillMaxSize().padding(top = 70.dp, bottom = 16.dp, start = 16.dp, end = 16.dp),
             contentAlignment = Alignment.TopCenter
         ) {
+            Spacer(modifier = Modifier.height(10.dp))
             LazyColumn(
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                // --- ALL YOUR ORIGINAL FORM FIELDS ARE PRESERVED HERE ---
 
+                item { Spacer(modifier = Modifier.height(10.dp))}
                 item { OutlinedTextField(value = uiState.name, onValueChange = viewModel::onNameChange, label = { Text(stringResource(id = R.string.event_name_label)) }, modifier = Modifier.fillMaxWidth()) }
                 item { OutlinedTextField(value = uiState.description, onValueChange = viewModel::onDescriptionChange, label = { Text(stringResource(id = R.string.description_label)) }, modifier = Modifier.fillMaxWidth(), minLines = 3) }
                 item {
