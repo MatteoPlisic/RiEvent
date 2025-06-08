@@ -156,7 +156,6 @@ class UpdateEventViewModel(application: Application) : AndroidViewModel(applicat
         _uiState.update { it.copy(updateSuccess = false) }
     }
 
-    // --- MAIN UPDATE LOGIC ---
     fun updateEvent() {
         val currentState = _uiState.value
         val originalEvent = currentState.originalEvent ?: return Unit.also {
@@ -176,17 +175,17 @@ class UpdateEventViewModel(application: Application) : AndroidViewModel(applicat
                     finalImageUrl = null
                 }
 
-                // --- THIS IS THE CORRECTED BLOCK ---
+
                 if (currentState.newImageUri != null) {
                     val fileName = "event_images/${UUID.randomUUID()}"
 
-                    // [THE FIX] Define imageRef using your storage instance and a child path.
+
                     val imageRef = storage.reference.child(fileName)
 
                     imageRef.putFile(currentState.newImageUri).await()
                     finalImageUrl = imageRef.downloadUrl.await().toString()
                 }
-                // --- END OF CORRECTION ---
+
 
                 val formatter = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
                 val startTs = runCatching { Timestamp(formatter.parse("${currentState.startDate} ${currentState.startTime}")!!) }.getOrNull()
@@ -223,12 +222,12 @@ class UpdateEventViewModel(application: Application) : AndroidViewModel(applicat
                 .build()
             try {
                 val response = placesClient.findAutocompletePredictions(request).await()
-                // [THE FIX] After getting predictions, set the flag to show them.
+
                 _uiState.update {
                     it.copy(
                         addressPredictions = response.autocompletePredictions,
                         isFetchingPredictions = false,
-                        // Only show the list if predictions were actually found
+
                         showPredictionsList = response.autocompletePredictions.isNotEmpty()
                     )
                 }

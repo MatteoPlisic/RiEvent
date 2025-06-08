@@ -9,6 +9,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -48,12 +49,29 @@ fun ChatScreen(
     val currentUserId = FirebaseAuth.getInstance().currentUser?.uid
     var text by remember { mutableStateOf("") }
 
+    // You could also fetch the other user's name to display in the TopAppBar
+    // val otherUserName by remember(chatId) { mutableStateOf(viewModel.getOtherParticipantName(chatId)) }
+
     LaunchedEffect(chatId) {
         viewModel.listenForMessages(chatId)
     }
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text(stringResource(id = R.string.chat_screen_title)) }) }, // You can enhance this later to show the user's name
+        topBar = {
+            TopAppBar(
+                // You can enhance this later to show the user's name
+                title = { Text(stringResource(id = R.string.chat_screen_title)) },
+                // [THE FIX] - Add the navigationIcon with a back button
+                navigationIcon = {
+                    IconButton(onClick = { navController.popBackStack() }) {
+                        Icon(
+                            imageVector = Icons.Filled.ArrowBack,
+                            contentDescription = stringResource(id = R.string.back_button_description)
+                        )
+                    }
+                }
+            )
+        },
         bottomBar = {
             Row(
                 modifier = Modifier
@@ -84,7 +102,6 @@ fun ChatScreen(
                 .padding(padding),
             reverseLayout = true
         ) {
-            // Add a spacer at the bottom for better layout
             item {
                 Spacer(modifier = Modifier.height(8.dp))
             }

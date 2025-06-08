@@ -25,25 +25,22 @@ class MapViewModel : ViewModel() {
 
     private val db = FirebaseFirestore.getInstance()
 
-    // Single source of truth for the screen's state
+
     private val _uiState = MutableStateFlow(MapUiState())
     val uiState = _uiState.asStateFlow()
 
-    // Internal state to hold the original, unfiltered list from Firestore
     private val _sourceEvents = MutableStateFlow<List<Event>>(emptyList())
     private val _dateFilter = MutableStateFlow<LocalDate?>(null)
 
     init {
-        // When the ViewModel starts, fetch the master list of events
+
         fetchEventsWithLocations()
 
-        // Set up a reactive pipeline that combines the source data and the date filter.
-        // Whenever either one changes, it automatically re-calculates the `allMapEvents`
-        // and updates the main UI state.
+
         viewModelScope.launch {
             combine(_sourceEvents, _dateFilter) { events, date ->
                 if (date == null) {
-                    events // No date filter, return all events
+                    events
                 } else {
                     events.filter { event ->
                         val eventStartDate = event.startTime?.toLocalDate() ?: return@filter false
@@ -52,12 +49,12 @@ class MapViewModel : ViewModel() {
                     }
                 }
             }.collect { dateFilteredEvents ->
-                // Update the main UI state with the newly filtered list.
-                // We also reset the visible events to this new list initially.
+
+
                 _uiState.update {
                     it.copy(
                         allMapEvents = dateFilteredEvents,
-                        visibleEvents = dateFilteredEvents // Show all in the list by default
+                        visibleEvents = dateFilteredEvents
                     )
                 }
             }
@@ -75,7 +72,7 @@ class MapViewModel : ViewModel() {
                 val events = result.documents.mapNotNull { doc ->
                     doc.toObject(Event::class.java)?.apply { id = doc.id }
                 }
-                // Update the single source of truth. The `combine` flow will handle the rest.
+
                 _sourceEvents.value = events
                 Log.d("MapViewModel", "Fetched ${events.size} total events with locations.")
             } catch (e: Exception) {
@@ -87,10 +84,10 @@ class MapViewModel : ViewModel() {
         }
     }
 
-    // --- UI EVENT HANDLERS ---
+
 
     fun onDateSelected(date: LocalDate?) {
-        _dateFilter.value = date // Update the date filter, the `combine` flow will react
+        _dateFilter.value = date
         _uiState.update { it.copy(selectedDate = date, isDatePickerDialogVisible = false) }
     }
 

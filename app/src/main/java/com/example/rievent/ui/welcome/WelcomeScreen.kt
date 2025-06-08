@@ -41,7 +41,7 @@ fun WelcomeScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val drawerState = rememberDrawerState(DrawerValue.Closed)
-    val scope = rememberCoroutineScope() // This scope is not used, can be removed if not needed elsewhere.
+    val scope = rememberCoroutineScope()
 
     LaunchedEffect(uiState.success) {
         if (uiState.success) {
@@ -69,13 +69,13 @@ fun WelcomeScreen(
                     }
                 )
                 NavigationDrawerItem(
-                    // Reusing existing string
+
                     label = { Text(stringResource(id = R.string.login_button)) },
                     selected = false,
                     onClick = onLoginClick
                 )
                 NavigationDrawerItem(
-                    // Reusing existing string
+
                     label = { Text(stringResource(id = R.string.register_button)) },
                     selected = false,
                     onClick = onRegisterClick
@@ -108,11 +108,11 @@ fun WelcomeScreen(
 
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 Button(onClick = onLoginClick, modifier = Modifier.fillMaxWidth()) {
-                    // Reusing existing string
+
                     Text(text = stringResource(id = R.string.login_button))
                 }
                 Button(onClick = onRegisterClick, modifier = Modifier.fillMaxWidth()) {
-                    // Reusing existing string
+
                     Text(text = stringResource(id = R.string.register_button))
                 }
                 Button(

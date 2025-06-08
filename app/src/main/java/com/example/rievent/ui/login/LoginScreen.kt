@@ -31,30 +31,11 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.example.rievent.R
 
-// The preview might need an update to pass the new onBack lambda
-@Preview(showBackground = true)
-@Composable
-fun LoginScreenPreview() {
-    // A simplified preview that doesn't rely on a real ViewModel or NavController
-    // Note: To properly preview, you'd mock the state and callbacks.
-    val previewState = LoginUiState(email = "test@example.com", password = "password123")
-    // LoginScreen(
-    //     state = previewState,
-    //     onEmailChange = {},
-    //     onPasswordChange = {},
-    //     onLoginClick = {},
-    //     onForgotPasswordClick = {},
-    //     onBack = {}, // Add the new onBack lambda
-    //     viewModel = null, // Or a mock ViewModel
-    //     navController = NavController(LocalContext.current)
-    // )
-}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -64,7 +45,7 @@ fun LoginScreen(
     onPasswordChange: (String) -> Unit,
     onLoginClick: () -> Unit,
     onForgotPasswordClick: () -> Unit,
-    onBack: () -> Unit, // Add the new parameter
+    onBack: () -> Unit,
     viewModel: LoginViewModel,
     navController: NavController,
 ) {
@@ -80,11 +61,11 @@ fun LoginScreen(
         }
     }
 
-    // [THE FIX] - Wrap the content in a Scaffold
+
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { /* Title can be empty for a clean look */ },
+                title = {  },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(
@@ -99,7 +80,7 @@ fun LoginScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues) // Apply padding from the Scaffold
+                .padding(paddingValues)
                 .verticalScroll(scrollState),
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -123,7 +104,7 @@ fun LoginScreen(
                 fontSize = 15.sp
             )
 
-            Spacer(modifier = Modifier.height(20.dp)) // Added more space for better layout
+            Spacer(modifier = Modifier.height(20.dp))
 
             OutlinedTextField(
                 value = state.email,
@@ -140,7 +121,7 @@ fun LoginScreen(
                 visualTransformation = PasswordVisualTransformation()
             )
 
-            Spacer(modifier = Modifier.height(20.dp)) // Added more space
+            Spacer(modifier = Modifier.height(20.dp))
 
             Button(onClick = onLoginClick) {
                 Text(text = stringResource(R.string.login_button))

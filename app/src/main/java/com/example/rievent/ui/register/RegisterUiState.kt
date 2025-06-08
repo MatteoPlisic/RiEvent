@@ -10,7 +10,7 @@ data class RegisterUiState(
     val lastName: String = "",
     val phoneNumber: String = "",
     val dateOfBirth: String = "",
-    val gender: Boolean = true, // true for Male
+    val gender: Boolean = true,
     val termsAndConditions: Boolean = false,
     val privacyPolicy: Boolean = false,
 

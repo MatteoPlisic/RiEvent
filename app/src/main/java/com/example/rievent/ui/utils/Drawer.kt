@@ -65,10 +65,6 @@ fun Drawer(
                 }
 
 
-                NavigationDrawerItem(label = { Text("Home") }, selected = false, onClick = {
-                    scope.launch { drawerState.close() }
-                    navController.navigate("events") // Assuming 'events' is your home screen
-                })
                 NavigationDrawerItem(label = { Text("Events") }, selected = false, onClick = {
                     scope.launch { drawerState.close() }
                     navController.navigate("events")

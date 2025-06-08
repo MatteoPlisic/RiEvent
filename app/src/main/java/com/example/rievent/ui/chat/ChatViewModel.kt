@@ -1,4 +1,4 @@
-package com.example.rievent.ui.chat // Or your package
+package com.example.rievent.ui.chat
 
 import Chat
 import Message
@@ -56,8 +56,7 @@ class ChatViewModel : ViewModel() {
             }
     }
 
-    // This function can now be removed or kept private, as it's called by init.
-    // I will keep it for clarity.
+
 
     fun listenForMessages(chatId: String) {
         messagesListener?.remove()
@@ -72,7 +71,6 @@ class ChatViewModel : ViewModel() {
             }
     }
 
-    // This simplified sendMessage function is CRITICAL for the whole system to work.
     fun sendMessage(chatId: String, text: String) {
         val currentUserId = auth.currentUser?.uid ?: return
         if (text.isBlank()) return
@@ -103,7 +101,7 @@ class ChatViewModel : ViewModel() {
         newChatParticipantDetails = details
     }
 
-    // onCleared is the correct place to stop the listeners for a ViewModel.
+
     override fun onCleared() {
         super.onCleared()
         messagesListener?.remove()

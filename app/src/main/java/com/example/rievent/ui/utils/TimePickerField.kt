@@ -1,4 +1,4 @@
-package com.example.rievent.ui.utils // Or your actual utils package
+package com.example.rievent.ui.utils
 
 import android.app.TimePickerDialog
 import androidx.compose.foundation.clickable
@@ -17,21 +17,21 @@ import java.util.Locale
 @Composable
 fun TimePickerField(
     label: String,
-    value: String, // This will display the "HH:mm" formatted time
-    onTimeSelected: (String) -> Unit, // Callback with "HH:mm"
-    onTextChange: (String) -> Unit // If you still need manual text input
+    value: String,
+    onTimeSelected: (String) -> Unit,
+    onTextChange: (String) -> Unit
 ) {
     val context = LocalContext.current
     val calendar = Calendar.getInstance()
 
-    // If value is not empty and is a valid time, try to parse it
+
     if (value.isNotBlank() && value.matches(Regex("\\d{2}:\\d{2}"))) {
         try {
             val parts = value.split(":")
             calendar.set(Calendar.HOUR_OF_DAY, parts[0].toInt())
             calendar.set(Calendar.MINUTE, parts[1].toInt())
         } catch (e: Exception) {
-            // If parsing fails, use current time
+
         }
     }
 
@@ -41,22 +41,22 @@ fun TimePickerField(
     val timePickerDialog = TimePickerDialog(
         context,
         { _, selectedHourOfDay: Int, selectedMinute: Int ->
-            // Format the selected time to "HH:mm" (24-hour format)
+
             val formattedTime = String.format(Locale.US, "%02d:%02d", selectedHourOfDay, selectedMinute)
             onTimeSelected(formattedTime)
-            onTextChange(formattedTime) // Also update the text field if needed
+            onTextChange(formattedTime)
         },
         hour,
         minute,
-        true // true for 24-hour format
+        true
     )
 
     OutlinedTextField(
         value = value,
-        onValueChange = { onTextChange(it) }, // Allows manual editing if desired
+        onValueChange = { onTextChange(it) },
         label = { Text(label) },
         modifier = Modifier.fillMaxWidth(),
-        readOnly = true, // Make it read-only to force use of picker
+        readOnly = true,
         trailingIcon = {
             Icon(
                 imageVector = Icons.Default.AccessTime,

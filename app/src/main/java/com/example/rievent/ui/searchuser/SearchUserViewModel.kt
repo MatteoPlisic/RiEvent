@@ -16,43 +16,39 @@ class SearchUserViewModel : ViewModel() {
 
     private val db = FirebaseFirestore.getInstance()
 
-    // Single source of truth for the screen's entire state.
+
     private val _uiState = MutableStateFlow(SearchUserUiState())
     val uiState = _uiState.asStateFlow()
 
     private var searchJob: Job? = null
 
-    /**
-     * Called by the UI whenever the search text changes.
-     * It updates the state and triggers the debounced search logic.
-     */
+
     fun onSearchQueryChanged(query: String) {
-        // Immediately update the text field in the UI
+
         _uiState.update { it.copy(searchQuery = query) }
 
-        // Cancel any previous search job to start a new one
+
         searchJob?.cancel()
 
-        // If the query is blank, clear the results and loading state, then stop.
+
         if (query.isBlank()) {
             _uiState.update { it.copy(searchResults = emptyList(), isLoading = false) }
             return
         }
 
-        // Start a new coroutine for the search with a debounce
+
         searchJob = viewModelScope.launch {
-            delay(300) // Wait for 300ms of inactivity
+            delay(300)
 
             _uiState.update { it.copy(isLoading = true, errorMessage = null) }
 
             try {
-                // Firestore query to find users whose name starts with the query text.
-                // '\uf8ff' is a special char that acts like a wildcard for prefix matching.
+
                 val result = db.collection("users")
                     .orderBy("displayName")
                     .startAt(query)
                     .endAt(query + '\uf8ff')
-                    .limit(20) // Always limit search results
+                    .limit(20)
                     .get()
                     .await()
 
@@ -60,7 +56,7 @@ class SearchUserViewModel : ViewModel() {
                     doc.toObject(User::class.java)?.copy(uid = doc.id)
                 }
 
-                // Update the state with the results
+
                 _uiState.update { it.copy(searchResults = userList, isLoading = false) }
 
             } catch (e: Exception) {

@@ -1,11 +1,7 @@
-// In a new file, e.g., EventClusterItem.kt
 import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.clustering.ClusterItem
 
-/**
- * A wrapper class for your Event to be used by the clustering utility.
- * Each instance of this class represents a single marker on the map.
- */
+
 data class EventClusterItem(
     val event: Event
 ) : ClusterItem {

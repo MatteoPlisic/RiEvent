@@ -23,7 +23,7 @@ class UserProfileViewModel : ViewModel() {
     private val auth = FirebaseAuth.getInstance()
     private val currentAuthUserId = auth.currentUser?.uid
 
-    // Single source of truth for the screen's state
+
     private val _uiState = MutableStateFlow(UserProfileUiState())
     val uiState = _uiState.asStateFlow()
 
@@ -37,10 +37,8 @@ class UserProfileViewModel : ViewModel() {
             return
         }
 
-        // Reset state for new profile load
         _uiState.value = UserProfileUiState()
 
-        // Detach all previous listeners to prevent leaks
         clearAllListeners()
 
         loadUserProfile(profileUserId)

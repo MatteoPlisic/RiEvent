@@ -54,7 +54,7 @@ fun UserProfileScreen(
     userId: String,
     viewModel: UserProfileViewModel = viewModel(),
     allEventsViewModel: AllEventsViewModel = viewModel(),
-    onBack: () -> Unit, // This can be removed if the drawer handles all back navigation
+    onBack: () -> Unit,
     onNavigateToSingleEvent: (eventId: String) -> Unit,
     isCurrentUserProfile: Boolean,
     chatViewModel: ChatViewModel,
@@ -69,20 +69,18 @@ fun UserProfileScreen(
         }
     }
 
-    // [THE FIX] - The entire screen content is now placed inside the Drawer's content lambda.
+
     Drawer(
         title = uiState.user?.displayName ?: stringResource(id = R.string.user_profile_title),
         navController = navController,
         gesturesEnabled = true,
-        // You can add a back arrow to the drawer's top bar if needed,
-        // or rely on the hamburger menu icon.
-        // For now, we assume the Drawer handles the TopAppBar.
+
     ) { paddingValues ->
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues) // Use padding from the Drawer
-                .padding(16.dp), // Add your own content padding
+                .padding(paddingValues)
+                .padding(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {

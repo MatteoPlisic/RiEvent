@@ -112,7 +112,7 @@ fun RegisterScreen(
                 .verticalScroll(scrollState),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // A spacer to push content down a bit from the TopAppBar
+
             Spacer(modifier = Modifier.height(16.dp))
 
             Image(

@@ -40,7 +40,7 @@ class CreateEventViewModel(application: Application) : ViewModel() {
     private val placesClient: PlacesClient = Places.createClient(application)
     private val auth = FirebaseAuth.getInstance()
 
-    // Single source of truth for the entire screen's state.
+
     private val _uiState = MutableStateFlow(CreateEventUiState())
     val uiState = _uiState.asStateFlow()
 
@@ -51,7 +51,7 @@ class CreateEventViewModel(application: Application) : ViewModel() {
         LatLng(45.75, 15.05)
     )
 
-    // --- UI EVENT HANDLERS ---
+
 
     fun onNameChange(name: String) { _uiState.update { it.copy(name = name) } }
     fun onDescriptionChange(description: String) { _uiState.update { it.copy(description = description) } }
@@ -97,7 +97,7 @@ class CreateEventViewModel(application: Application) : ViewModel() {
         if (isFocused && currentState.addressInput.isNotBlank() && currentState.addressPredictions.isNotEmpty()) {
             _uiState.update { it.copy(showPredictionsList = true) }
         } else if (!isFocused) {
-            // Delay to allow click on prediction to register
+
             viewModelScope.launch {
                 delay(200)
                 _uiState.update { it.copy(showPredictionsList = false) }
@@ -111,10 +111,10 @@ class CreateEventViewModel(application: Application) : ViewModel() {
     }
 
     fun eventCreationNavigated() {
-        _uiState.value = CreateEventUiState() // Reset to initial state after navigation
+        _uiState.value = CreateEventUiState()
     }
 
-    // --- MAIN LOGIC ---
+
 
     fun createEvent() {
         viewModelScope.launch {
@@ -123,7 +123,7 @@ class CreateEventViewModel(application: Application) : ViewModel() {
             val currentState = _uiState.value
             var imageUrl: String? = null
 
-            // 1. Upload image if it exists
+
             if (currentState.imageUri != null) {
                 try {
                     val fileName = "event_images/${UUID.randomUUID()}"
@@ -137,7 +137,7 @@ class CreateEventViewModel(application: Application) : ViewModel() {
                 }
             }
 
-            // 2. Prepare Event object from state
+
             val formatter = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US)
             val startTs = if (currentState.startDate.isNotBlank() && currentState.startTime.isNotBlank()) runCatching { Timestamp(formatter.parse("${currentState.startDate} ${currentState.startTime}")!!) }.getOrNull() else null
             val endTs = if (currentState.endDate.isNotBlank() && currentState.endTime.isNotBlank()) runCatching { Timestamp(formatter.parse("${currentState.endDate} ${currentState.endTime}")!!) }.getOrNull() else null
@@ -152,7 +152,7 @@ class CreateEventViewModel(application: Application) : ViewModel() {
                 ownerName = ownerName, createdAt = Timestamp.now(), imageUrl = imageUrl
             )
 
-            // 3. Create Event and RSVP documents in Firestore
+
             try {
                 val documentReference: DocumentReference = db.collection("Event").add(event).await()
                 val eventId = documentReference.id
@@ -184,12 +184,12 @@ class CreateEventViewModel(application: Application) : ViewModel() {
                 .build()
             try {
                 val response = placesClient.findAutocompletePredictions(request).await()
-                // [THE FIX] After getting predictions, set the flag to show them.
+
                 _uiState.update {
                     it.copy(
                         addressPredictions = response.autocompletePredictions,
                         isFetchingPredictions = false,
-                        // Only show the list if predictions were actually found
+
                         showPredictionsList = response.autocompletePredictions.isNotEmpty()
                     )
                 }

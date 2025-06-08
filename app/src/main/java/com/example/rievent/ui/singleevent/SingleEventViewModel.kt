@@ -29,11 +29,11 @@ class SingleEventViewModel : ViewModel() {
     private val auth = FirebaseAuth.getInstance()
     private val currentUserId = auth.currentUser?.uid
 
-    // Single source of truth for the screen's state
+
     private val _uiState = MutableStateFlow(SingleEventUiState())
     val uiState = _uiState.asStateFlow()
 
-    // Internal state to hold the full ratings objects for logic
+
     private var allRatings: List<EventRating> = emptyList()
 
     private var eventListener: ListenerRegistration? = null
@@ -54,7 +54,7 @@ class SingleEventViewModel : ViewModel() {
     private fun attachEventListeners(eventId: String) {
         val uid = currentUserId
 
-        // Load Event Details
+
         eventListener?.remove()
         eventListener = db.collection("Event").document(eventId)
             .addSnapshotListener { snapshot, e ->
@@ -67,7 +67,7 @@ class SingleEventViewModel : ViewModel() {
                 _uiState.update { it.copy(event = loadedEvent, isRatingEnabled = isRatingEnabled) }
             }
 
-        // Load RSVP
+
         rsvpListener?.remove()
         rsvpListener = db.collection("event_rspv").whereEqualTo("eventId", eventId)
             .addSnapshotListener { snapshot, _ ->
@@ -75,7 +75,7 @@ class SingleEventViewModel : ViewModel() {
                 _uiState.update { it.copy(rsvp = rsvp) }
             }
 
-        // Load Ratings
+
         ratingsListener?.remove()
         ratingsListener = db.collection("event_ratings").whereEqualTo("eventId", eventId)
             .addSnapshotListener { snapshot, _ ->
@@ -88,17 +88,16 @@ class SingleEventViewModel : ViewModel() {
                 _uiState.update { it.copy(averageRating = avg, totalRatings = ratingsList.size, userRating = userRatingValue) }
             }
 
-        // Load Comments
+
         commentsListener?.remove()
         commentsListener = db.collection("event_comments").whereEqualTo("eventId", eventId)
             .orderBy("createdAt", Query.Direction.DESCENDING).limit(50)
             .addSnapshotListener { snapshot, _ ->
                 val commentsList = snapshot?.toObjects<EventComment>() ?: emptyList()
-                _uiState.update { it.copy(comments = commentsList, isLoading = false) } // Final load, set loading to false
+                _uiState.update { it.copy(comments = commentsList, isLoading = false) }
             }
     }
 
-    // --- UI EVENT HANDLERS ---
 
     fun onNewCommentChange(text: String) {
         _uiState.update { it.copy(newCommentText = text) }
@@ -115,18 +114,18 @@ class SingleEventViewModel : ViewModel() {
 
         viewModelScope.launch {
             try {
-                // Step 1: Determine the user's name.
+
                 var userName = auth.currentUser?.displayName
-                // If the name is null or blank, fetch it from Firestore.
+
                 if (userName.isNullOrBlank()) {
                     val userDoc = db.collection("users").document(uid).get().await()
-                    userName = userDoc.getString("displayName") ?: "Anonymous" // Fallback to Anonymous
+                    userName = userDoc.getString("displayName") ?: "Anonymous"
                 }
 
-                // Step 2: Get the profile picture URL.
+
                 val profilePic = auth.currentUser?.photoUrl?.toString()
 
-                // Step 3: Create the comment object with the definitive name.
+
                 val newComment = EventComment(
                     eventId = eventId,
                     userId = uid,
@@ -135,10 +134,10 @@ class SingleEventViewModel : ViewModel() {
                     profileImageUrl = profilePic
                 )
 
-                // Step 4: Add the comment to Firestore.
+
                 db.collection("event_comments").add(newComment).await()
 
-                // Step 5: Clear the input field in the UI on success.
+
                 _uiState.update { it.copy(newCommentText = "") }
 
             } catch (e: Exception) {
@@ -150,7 +149,7 @@ class SingleEventViewModel : ViewModel() {
 
     fun submitRating(eventId: String, ratingValue: Float) {
         val uid = currentUserId ?: return
-        onRatingDialogToggled(false) // Hide dialog immediately
+        onRatingDialogToggled(false)
 
         val existingRating = allRatings.firstOrNull { it.userId == uid }
 

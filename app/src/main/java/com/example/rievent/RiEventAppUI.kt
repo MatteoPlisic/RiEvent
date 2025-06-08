@@ -234,7 +234,7 @@ fun RiEventAppUI(
                 viewModel = sharedChatViewModel
             )
         }
-        // This is the destination for chat deep links
+
         composable("conversation/{chatId}") { backStackEntry ->
             val chatId = backStackEntry.arguments?.getString("chatId")
             if (chatId != null) {

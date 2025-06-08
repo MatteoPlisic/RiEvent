@@ -20,11 +20,11 @@ import kotlinx.coroutines.flow.asStateFlow
 
 class MainActivity : ComponentActivity() {
 
-    // StateFlow for navigating to a specific EVENT
+
     private val _deepLinkNavigateToEventId = MutableStateFlow<String?>(null)
     val deepLinkNavigateToEventId: StateFlow<String?> = _deepLinkNavigateToEventId.asStateFlow()
 
-    // NEW: StateFlow for navigating to a specific CHAT
+
     private val _deepLinkNavigateToChatId = MutableStateFlow<String?>(null)
     val deepLinkNavigateToChatId: StateFlow<String?> = _deepLinkNavigateToChatId.asStateFlow()
 
@@ -45,23 +45,23 @@ class MainActivity : ComponentActivity() {
 
         askNotificationPermission()
 
-        // MODIFIED: Update the call to RiEventAppUI with the new signature
+
         setContent {
             RiEventAppUI(
                 deepLinkEventIdFlow = deepLinkNavigateToEventId,
-                deepLinkChatIdFlow = deepLinkNavigateToChatId, // NEW: Pass the chat flow
+                deepLinkChatIdFlow = deepLinkNavigateToChatId,
                 onEventDeepLinkHandled = {
                     Log.d("DeepLink", "Event deep link handled, resetting flow.")
                     _deepLinkNavigateToEventId.value = null
                 },
-                onChatDeepLinkHandled = { // NEW: Add the handler for chat deep links
+                onChatDeepLinkHandled = {
                     Log.d("DeepLink", "Chat deep link handled, resetting flow.")
                     _deepLinkNavigateToChatId.value = null
                 }
             )
         }
 
-        // Handle the intent that started this activity instance
+
         Log.d("MainActivityLifecycle", "Calling handleIntentExtras from onCreate")
         handleIntentExtras(intent)
     }
@@ -96,7 +96,7 @@ class MainActivity : ComponentActivity() {
                     Log.w("DeepLink", "NEW_MESSAGE notification received without a chatId.")
                 }
             }
-            // Add other event types here as needed
+
             "EVENT_DELETED", "EVENT_UPDATED", "NEW_EVENT_BY_FOLLOWED_USER" -> {
                 val eventId = extras?.getString("eventId")
                 if (eventId != null) {
@@ -112,7 +112,6 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    // --- The functions below are unchanged but necessary for context ---
 
     private fun askNotificationPermission() {
         Log.d("Permission", "askNotificationPermission called")

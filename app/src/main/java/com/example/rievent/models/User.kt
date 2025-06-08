@@ -5,7 +5,7 @@ import com.google.firebase.firestore.DocumentId
 
 
 data class User(
-    @DocumentId val uid: String = "", // Annotate uid with @DocumentId
+    @DocumentId val uid: String = "",
     val displayName: String? = null,
     val email: String? = null,
     val photoUrl: String? = null,

@@ -8,17 +8,16 @@ import com.google.android.libraries.places.api.net.PlacesClient
 
 class RieventApplication : Application() {
 
-    // You can make this accessible globally if needed, but be cautious with global state.
-    // For now, it's initialized here and the Places SDK itself is a singleton.
+
     lateinit var placesClient: PlacesClient
-        private set // Restrict writing to this property from outside the class
+        private set
 
     override fun onCreate() {
         super.onCreate()
 
-        Log.d("RieventApplication", "onCreate called") // For debugging
+        Log.d("RieventApplication", "onCreate called")
 
-        // Retrieve API key from manifest's meta-data
+
         val apiKey = try {
             val appInfo = packageManager.getApplicationInfo(packageName, PackageManager.GET_META_DATA)
             appInfo.metaData.getString("com.google.android.geo.API_KEY")
@@ -30,9 +29,9 @@ class RieventApplication : Application() {
             null
         }
 
-        if (apiKey.isNullOrBlank()) { // Check for blank too
+        if (apiKey.isNullOrBlank()) {
             Log.e("RieventApplication", "Places API key not found, empty, or blank in manifest. Places SDK will NOT be initialized.")
-            // You might want to throw an exception or disable features if the API key is critical
+
         } else {
             if (!Places.isInitialized()) {
                 try {
@@ -41,10 +40,10 @@ class RieventApplication : Application() {
                     Log.i("RieventApplication", "Places SDK Initialized successfully.")
                 } catch (e: Exception) {
                     Log.e("RieventApplication", "Error initializing Places SDK: ${e.message}", e)
-                    // Handle initialization error, e.g., API key invalid, network issue during init
+
                 }
             } else {
-                // If already initialized (e.g., process was recreated), just get the client
+
                 placesClient = Places.createClient(this)
                 Log.i("RieventApplication", "Places SDK was already initialized. Got client instance.")
             }

@@ -1,4 +1,3 @@
-// ui/login/LoginUiState.kt
 package com.example.rievent.ui.login
 
 data class LoginUiState(

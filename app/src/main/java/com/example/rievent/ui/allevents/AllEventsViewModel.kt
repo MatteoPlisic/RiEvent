@@ -23,7 +23,7 @@ import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.ZoneId
 
-// Helper function remains useful
+
 fun Timestamp.toLocalDate(): LocalDate {
     return this.toDate().toInstant().atZone(ZoneId.systemDefault()).toLocalDate()
 }
@@ -32,18 +32,18 @@ class AllEventsViewModel : ViewModel() {
     private val db = FirebaseFirestore.getInstance()
     private val auth = FirebaseAuth.getInstance()
 
-    // A single source of truth for the screen's entire state.
+
     private val _uiState = MutableStateFlow(AllEventsUiState())
     val uiState = _uiState.asStateFlow()
 
-    // This holds the master list of all events fetched from Firestore.
+
     private var allEventsMasterList = listOf<Event>()
 
-    // Listeners for real-time data
+
     private val rsvpListeners = mutableMapOf<String, ListenerRegistration>()
     private var eventsListenerRegistration: ListenerRegistration? = null
 
-    // Navigation actions are handled separately from UI state.
+
     private val _navigateToSingleEventAction = MutableSharedFlow<String>(replay = 0, extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
     val navigateToSingleEventAction: SharedFlow<String> = _navigateToSingleEventAction
 
@@ -51,7 +51,7 @@ class AllEventsViewModel : ViewModel() {
         loadAllPublicEvents()
     }
 
-    // --- STATE UPDATE FUNCTIONS (Events from UI) ---
+
 
     fun onSearchTextChanged(text: String) {
         _uiState.update { it.copy(searchText = text) }
@@ -103,7 +103,6 @@ class AllEventsViewModel : ViewModel() {
         }
     }
 
-    // --- DATA LOADING AND FILTERING LOGIC (Internal) ---
 
     private fun loadAllPublicEvents() {
         _uiState.update { it.copy(isLoading = true) }
@@ -124,7 +123,7 @@ class AllEventsViewModel : ViewModel() {
                     doc.toObject(Event::class.java)?.copy(id = doc.id)
                 }
                 allEventsMasterList = freshEventsList
-                applyFilters() // Apply current filters to the new master list
+                applyFilters()
                 _uiState.update { it.copy(isLoading = false) }
             }
     }
@@ -146,7 +145,7 @@ class AllEventsViewModel : ViewModel() {
             val matchesDistance = if (currentState.userLocation != null && event.location != null && currentState.distanceFilterKm < 50f) {
                 calculateDistance(currentState.userLocation, event.location) <= currentState.distanceFilterKm
             } else {
-                true // Pass if no location or distance filter is active
+                true
             }
             matchesText && matchesCategory && matchesDate && matchesDistance
         }
@@ -162,8 +161,7 @@ class AllEventsViewModel : ViewModel() {
         return userLocation.distanceTo(eventLocation) / 1000f
     }
 
-    // --- RSVP LOGIC (Preserved as is) ---
-    // Note: This directly updates the eventsRsvpsMap in the UiState.
+
 
     fun listenToRsvpForEvent(eventId: String?) {
         if (eventId.isNullOrBlank() || rsvpListeners.containsKey(eventId)) return
