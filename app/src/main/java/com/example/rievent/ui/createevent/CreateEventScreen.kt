@@ -6,24 +6,26 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddPhotoAlternate
+import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -48,6 +50,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
@@ -72,10 +75,14 @@ fun CreateEventScreen(
     val factory = remember { CreateEventViewModelFactory(context.applicationContext as Application) }
     val viewModel: CreateEventViewModel = viewModel(factory = factory)
     val uiState by viewModel.uiState.collectAsState()
+
     val imagePickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent(),
-        onResult = { uri: Uri? -> viewModel.onImageSelected(uri) }
+        contract = ActivityResultContracts.GetMultipleContents(),
+        onResult = { uris: List<Uri> ->
+            uris.forEach { viewModel.onImageSelected(it) }
+        }
     )
+
     val categoryOptions = listOf("Sports", "Academic", "Business", "Culture", "Concert", "Quizz", "Party")
     val focusManager = LocalFocusManager.current
 
@@ -86,17 +93,18 @@ fun CreateEventScreen(
         }
     }
 
-    Drawer(title = stringResource(id = R.string.create_event_title), navController = navController, gesturesEnabled = true) {
+    Drawer(title = stringResource(id = R.string.create_event_title), navController = navController, gesturesEnabled = true) { padding ->
         Box(
-            modifier = Modifier.fillMaxSize().padding(top = 70.dp, bottom = 56.dp, start = 16.dp, end = 16.dp),
+            modifier = Modifier.fillMaxSize().padding(top = 70.dp, bottom = 16.dp, start = 16.dp, end = 16.dp),
             contentAlignment = Alignment.TopCenter
         ) {
             LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                item { Spacer(modifier = Modifier.height(15.dp))}
+                // --- ALL YOUR ORIGINAL FORM FIELDS ARE PRESERVED HERE ---
+
                 item { OutlinedTextField(value = uiState.name, onValueChange = viewModel::onNameChange, label = { Text(stringResource(id = R.string.event_name_label)) }, modifier = Modifier.fillMaxWidth()) }
                 item { OutlinedTextField(value = uiState.description, onValueChange = viewModel::onDescriptionChange, label = { Text(stringResource(id = R.string.description_label)) }, modifier = Modifier.fillMaxWidth(), minLines = 3) }
                 item {
@@ -159,26 +167,45 @@ fun CreateEventScreen(
                         }
                     }
                 }
+
+                // [MODIFIED] Image selection section now handles multiple images
                 item {
-                    Box(
-                        modifier = Modifier.fillMaxWidth(0.8f).aspectRatio(16f / 9f).clip(RoundedCornerShape(8.dp)).background(MaterialTheme.colorScheme.surfaceVariant)
-                            .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(8.dp)).clickable { imagePickerLauncher.launch("image/*") },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (uiState.imageUri != null) {
-                            Image(painter = rememberAsyncImagePainter(model = uiState.imageUri), contentDescription = stringResource(id = R.string.selected_event_image_description), modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-                        } else {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Icon(imageVector = Icons.Default.AddPhotoAlternate, contentDescription = stringResource(id = R.string.add_image_placeholder_description), modifier = Modifier.size(48.dp))
-                                Text(stringResource(id = R.string.tap_to_select_image))
+                    Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(stringResource(id = R.string.event_image_label), style = MaterialTheme.typography.labelMedium)
+                        Spacer(Modifier.height(8.dp))
+
+                        // Display selected images in a horizontal row
+                        if (uiState.imageUris.isNotEmpty()) {
+                            LazyRow(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                items(uiState.imageUris) { uri ->
+                                    ImagePreview(
+                                        uri = uri,
+                                        onRemoveClick = { viewModel.onImageRemoved(uri) }
+                                    )
+                                }
                             }
+                        }
+
+                        // Button to add more photos
+                        Spacer(Modifier.height(8.dp))
+                        Button(onClick = { imagePickerLauncher.launch("image/*") }) {
+                            Icon(imageVector = Icons.Default.AddPhotoAlternate, contentDescription = null)
+                            Spacer(Modifier.width(8.dp))
+                            Text(stringResource(id = R.string.add_image_placeholder_description))
                         }
                     }
                 }
+
                 item { DatePickerField(label = stringResource(id = R.string.start_date_label), value = uiState.startDate, onDateSelected = viewModel::onStartDateChange, onTextChange = viewModel::onStartDateChange) }
                 item { TimePickerField(label = stringResource(id = R.string.start_time_label), value = uiState.startTime, onTimeSelected = viewModel::onStartTimeChange, onTextChange = viewModel::onStartTimeChange) }
                 item { DatePickerField(label = stringResource(id = R.string.end_date_label), value = uiState.endDate, onDateSelected = viewModel::onEndDateChange, onTextChange = viewModel::onEndDateChange) }
                 item { TimePickerField(label = stringResource(id = R.string.end_time_label), value = uiState.endTime, onTimeSelected = viewModel::onEndTimeChange, onTextChange = viewModel::onEndTimeChange) }
+
+
+
                 item {
                     Button(
                         onClick = { viewModel.createEvent() },
@@ -187,12 +214,46 @@ fun CreateEventScreen(
                     ) { Text(if (uiState.isSubmitting) stringResource(id = R.string.creating_button_text) else stringResource(id = R.string.create_event_button)) }
                 }
                 if (uiState.userMessage != null) {
-                    item { Text(stringResource(id = R.string.generic_error_prefix,
-                        uiState.userMessage!!
-                    ), color = MaterialTheme.colorScheme.error) }
+                    item { Text(stringResource(id = R.string.generic_error_prefix, uiState.userMessage!!), color = MaterialTheme.colorScheme.error) }
                 }
                 item { Spacer(modifier = Modifier.height(60.dp)) }
             }
+        }
+    }
+}
+
+// A reusable composable for displaying a single image preview with a remove button
+@Composable
+fun ImagePreview(
+    uri: Uri,
+    onRemoveClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .size(100.dp)
+            .clip(RoundedCornerShape(8.dp))
+    ) {
+        Image(
+            painter = rememberAsyncImagePainter(model = uri),
+            contentDescription = stringResource(id = R.string.selected_event_image_description),
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Crop
+        )
+        IconButton(
+            onClick = onRemoveClick,
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(4.dp)
+                .size(24.dp)
+                .background(Color.Black.copy(alpha = 0.5f), CircleShape)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Cancel,
+                contentDescription = stringResource(id = R.string.remove_image_button),
+                tint = Color.White,
+                modifier = Modifier.size(16.dp)
+            )
         }
     }
 }

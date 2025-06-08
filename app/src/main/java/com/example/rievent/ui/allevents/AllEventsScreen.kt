@@ -290,9 +290,16 @@ fun AllEventCard(
                     Button(onClick = { allEventsViewModel.updateRsvp(event.id, RsvpStatus.NOT_COMING) }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = if (thisUserNotComing) Color(0xFFEF5350) else MaterialTheme.colorScheme.errorContainer, contentColor = if (thisUserNotComing) Color.White else MaterialTheme.colorScheme.onErrorContainer), enabled = !thisUserNotComing) { Text(stringResource(id = R.string.all_events_card_not_coming_button, notComingCount), fontSize = 11.sp, lineHeight = 12.sp, textAlign = TextAlign.Center) }
                 }
             }
-            event.imageUrl?.let { imageUrl ->
+
+            // [THE FIX] - Check if the list is not null or empty, then take the first element.
+            if (!event.imageUrls.isNullOrEmpty()) {
                 Image(
-                    painter = rememberAsyncImagePainter(ImageRequest.Builder(LocalContext.current).data(data = imageUrl).crossfade(true).build()),
+                    painter = rememberAsyncImagePainter(
+                        ImageRequest.Builder(LocalContext.current)
+                            .data(data = event.imageUrls.first()) // Use .first() to get the primary image
+                            .crossfade(true)
+                            .build()
+                    ),
                     contentDescription = stringResource(id = R.string.all_events_card_icon_description),
                     modifier = Modifier.size(width = 100.dp, height = 70.dp).padding(top = 8.dp, end = 8.dp).align(Alignment.TopEnd),
                     contentScale = ContentScale.Crop

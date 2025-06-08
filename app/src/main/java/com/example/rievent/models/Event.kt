@@ -16,5 +16,6 @@ data class Event(
     val imageUrl: String? = null,
     val isPublic: Boolean = true,
     val createdAt: Timestamp = Timestamp.now(),
-    val ownerName: String = ""
+    val ownerName: String = "",
+    val imageUrls: List<String> = emptyList()
 )

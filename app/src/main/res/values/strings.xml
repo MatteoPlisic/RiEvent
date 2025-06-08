@@ -55,7 +55,7 @@
     <string name="new_location_selected">New Location Selected: Lat: %1$s, Lng: %2$s</string>
     <string name="event_image_label">Event Image</string>
     <string name="event_image_description">Event image</string>
-    <string name="add_image_placeholder_description">Add Image Placeholder</string>
+    <string name="add_image_placeholder_description">Add Image</string>
     <string name="remove_image_button">Remove Image</string>
     <string name="start_date_label">Start Date</string>
     <string name="start_time_label">Start Time</string>
