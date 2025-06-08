@@ -37,6 +37,7 @@ import coil.request.ImageRequest
 import com.example.rievent.R
 import com.example.rievent.ui.utils.Drawer
 import com.google.firebase.auth.FirebaseAuth
+import androidx.compose.foundation.layout.size
 
 @Composable
 fun ChatListScreen(
@@ -122,7 +123,7 @@ fun ChatListItem(name: String, lastMessage: String, imageUrl: String?, onClick: 
             error = placeholderPainter,
             contentDescription = stringResource(id = R.string.chat_list_profile_icon_description),
             modifier = Modifier
-                .width(48.dp)
+                .size(48.dp)
                 .clip(CircleShape)
                 .background(MaterialTheme.colorScheme.surfaceVariant),
             contentScale = ContentScale.Crop
